@@ -30,7 +30,7 @@ This single document contains all **Concept** specs (purpose, principle, SSF sta
 
 ## Concepts
 
-### concept: UserAuthentication [User]
+### concept: UserAuthenticating [User]
 
 *   **purpose**: To securely verify a user's identity based on credentials.
 *   **principle**: If you register with a unique username and a password, and later provide the same credentials to log in, you will be successfully identified as that user.
@@ -298,7 +298,7 @@ a set of Names with
 
 ### Auth ↔ Session
 
-> Updated for current concept code: `UserAuthenticating.register`, `UserAuthenticating.authenticate`, `UserSessioning.beginSession`, `UserSessioning.endSession`, `UserSessioning.makeRequest`.
+> Aligned to concept specs: `UserAuthenticating.register`, `UserAuthenticating.login`, `UserSessioning.create`, `UserSessioning.delete`.
 
 **RegisterFlow**
 
@@ -307,14 +307,14 @@ sync RegisterRequest
 when
   UserRequesting.request ( path: "/auth/register", email, password ) : (request)
 then
-  UserAuthenticating.register ( email, password )
+  UserAuthenticating.register ( username: email, password )
 
 sync RegisterRespondSuccess
 when
   UserRequesting.request ( path: "/auth/register" ) : (request)
   UserAuthenticating.register () : (user)
 then
-  UserSessioning.beginSession ( user )
+  UserSessioning.create ( user )
   UserRequesting.respond ( request, user )
 
 sync RegisterRespondError
@@ -330,22 +330,22 @@ then
 ```
 sync LoginRequest
 when
-  UserRequesting.request ( path: "/auth/login", email, password ) : (request)
+  UserRequesting.request ( path: "/auth/login", username: email, password ) : (request)
 then
-  UserAuthenticating.authenticate ( email, password )
+  UserAuthenticating.login ( username: email, password )
 
 sync LoginRespondSuccess
 when
   UserRequesting.request ( path: "/auth/login" ) : (request)
-  UserAuthenticating.authenticate () : (user)
+  UserAuthenticating.login () : (user)
 then
-  UserSessioning.beginSession ( user: user._id )
+  UserSessioning.create ( user )
   UserRequesting.respond ( request, user )
 
 sync LoginRespondError
 when
   UserRequesting.request ( path: "/auth/login" ) : (request)
-  UserAuthenticating.authenticate () : (error)
+  UserAuthenticating.login () : (error)
 then
   UserRequesting.respond ( request, error )
 ```
@@ -357,19 +357,20 @@ sync LogoutRequest
 when
   UserRequesting.request ( path: "/auth/logout", session ) : (request)
 then
-  UserSessioning.endSession ( session )
+  UserSessioning.delete ( session )
 
 sync LogoutRespondSuccess
 when
   UserRequesting.request ( path: "/auth/logout" ) : (request)
-  UserSessioning.endSession () : (ok)
+  UserSessioning.delete () : ()
 then
-  UserRequesting.respond ( request, ok )
+  UserRequesting.respond ( request, status: "logged_out" )
 
+// Logout error path (session not found)
 sync LogoutRespondError
 when
   UserRequesting.request ( path: "/auth/logout" ) : (request)
-  UserSessioning.endSession () : (error)
+  UserSessioning.delete () : (error)
 then
   UserRequesting.respond ( request, error )
 ```
@@ -521,7 +522,6 @@ when
 where
   user is UserSessioning._getUser ( session )
 then
-  UserSessioning.makeRequest ( session )
   Liking.like ( item, user )
 
 sync LikeRespondSuccess
@@ -544,7 +544,6 @@ when
 where
   user is UserSessioning._getUser ( session )
 then
-  UserSessioning.makeRequest ( session )
   Liking.unlike ( item, user )
 
 sync UnlikeRespondSuccess
@@ -609,27 +608,7 @@ then
 
 ### Session Hygiene
 
-**Expire active sessions automatically**
-
-```
-sync AutoExpireSessions
-when
-  UserSessioning.expireSession ( session ) : (expired)
-then
-  // terminal housekeeping; no follow-on action
-```
-
-**End all sessions on password change**
-
-```
-sync PasswordChangeEndsSessions
-when
-  UserAuthenticating.changePassword ( user, old, new ) : (ok)
-where
-  in UserSessioning: _sessionsOf ( user ) gets session
-then
-  UserSessioning.endSession ( session )
-```
+// Removed obsolete auto-expire and password-change session ending syncs (not in minimal spec).
 
 ---
 
