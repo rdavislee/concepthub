@@ -1,28 +1,28 @@
 import { actions, Sync } from "@engine";
-import { Requesting, Sessioning, UserAuthentication } from "@concepts";
+import { Requesting, UserAuthenticating, UserSessioning } from "@concepts";
 
 //-- User Registration --//
 export const RegisterRequest: Sync = ({ request, username, password }) => ({
   when: actions([Requesting.request, {
-    path: "/UserAuthentication/register",
+    path: "/UserAuthenticating/register",
     username,
     password,
   }, { request }]),
-  then: actions([UserAuthentication.register, { username, password }]),
+  then: actions([UserAuthenticating.register, { username, password }]),
 });
 
 export const RegisterResponseSuccess: Sync = ({ request, user }) => ({
   when: actions(
-    [Requesting.request, { path: "/UserAuthentication/register" }, { request }],
-    [UserAuthentication.register, {}, { user }],
+    [Requesting.request, { path: "/UserAuthenticating/register" }, { request }],
+    [UserAuthenticating.register, {}, { user }],
   ),
   then: actions([Requesting.respond, { request, user }]),
 });
 
 export const RegisterResponseError: Sync = ({ request, error }) => ({
   when: actions(
-    [Requesting.request, { path: "/UserAuthentication/register" }, { request }],
-    [UserAuthentication.register, {}, { error }],
+    [Requesting.request, { path: "/UserAuthenticating/register" }, { request }],
+    [UserAuthenticating.register, {}, { error }],
   ),
   then: actions([Requesting.respond, { request, error }]),
 });
@@ -30,31 +30,31 @@ export const RegisterResponseError: Sync = ({ request, error }) => ({
 //-- User Login & Session Creation --//
 export const LoginRequest: Sync = ({ request, username, password }) => ({
   when: actions([Requesting.request, {
-    path: "/UserAuthentication/login",
+    path: "/UserAuthenticating/login",
     username,
     password,
   }, { request }]),
-  then: actions([UserAuthentication.login, { username, password }]),
+  then: actions([UserAuthenticating.login, { username, password }]),
 });
 
 export const LoginSuccessCreatesSession: Sync = ({ user }) => ({
-  when: actions([UserAuthentication.login, {}, { user }]),
-  then: actions([Sessioning.create, { user }]),
+  when: actions([UserAuthenticating.login, {}, { user }]),
+  then: actions([UserSessioning.create, { user }]),
 });
 
 export const LoginResponseSuccess: Sync = ({ request, user, session }) => ({
   when: actions(
-    [Requesting.request, { path: "/UserAuthentication/login" }, { request }],
-    [UserAuthentication.login, {}, { user }],
-    [Sessioning.create, { user }, { session }],
+    [Requesting.request, { path: "/UserAuthenticating/login" }, { request }],
+    [UserAuthenticating.login, {}, { user }],
+    [UserSessioning.create, { user }, { session }],
   ),
   then: actions([Requesting.respond, { request, session, user }]),
 });
 
 export const LoginResponseError: Sync = ({ request, error }) => ({
   when: actions(
-    [Requesting.request, { path: "/UserAuthentication/login" }, { request }],
-    [UserAuthentication.login, {}, { error }],
+    [Requesting.request, { path: "/UserAuthenticating/login" }, { request }],
+    [UserAuthenticating.login, {}, { error }],
   ),
   then: actions([Requesting.respond, { request, error }]),
 });
@@ -64,28 +64,30 @@ export const LogoutRequest: Sync = ({ request, session, user }) => ({
   when: actions([Requesting.request, { path: "/logout", session }, {
     request,
   }]),
-  where: (frames) => frames.query(Sessioning._getUser, { session }, { user }),
-  then: actions([Sessioning.delete, { session }]),
+  where: (frames) =>
+    frames.query(UserSessioning._getUser, { session }, { user }),
+  then: actions([UserSessioning.delete, { session }]),
 });
 
 export const LogoutResponse: Sync = ({ request }) => ({
   when: actions(
     [Requesting.request, { path: "/logout" }, { request }],
-    [Sessioning.delete, {}, {}],
+    [UserSessioning.delete, {}, {}],
   ),
   then: actions([Requesting.respond, { request, status: "logged_out" }]),
 });
 
-//-- Session Validation (frontend may poll /Sessioning/_getUser) --//
+//-- Session Validation (frontend may poll /UserSessioning/_getUser) --//
 export const SessionValidationSuccess: Sync = (
   { request, session, user },
 ) => ({
   when: actions([
     Requesting.request,
-    { path: "/Sessioning/_getUser", session },
+    { path: "/UserSessioning/_getUser", session },
     { request },
   ]),
-  where: (frames) => frames.query(Sessioning._getUser, { session }, { user }),
+  where: (frames) =>
+    frames.query(UserSessioning._getUser, { session }, { user }),
   then: actions([Requesting.respond, { request, user }]),
 });
 
@@ -94,9 +96,10 @@ export const SessionValidationError: Sync = (
 ) => ({
   when: actions([
     Requesting.request,
-    { path: "/Sessioning/_getUser", session },
+    { path: "/UserSessioning/_getUser", session },
     { request },
   ]),
-  where: (frames) => frames.query(Sessioning._getUser, { session }, { error }),
+  where: (frames) =>
+    frames.query(UserSessioning._getUser, { session }, { error }),
   then: actions([Requesting.respond, { request, error }]),
 });
