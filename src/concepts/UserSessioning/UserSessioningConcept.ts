@@ -1,91 +1,86 @@
 import { Collection, Db } from "npm:mongodb";
-import { ID } from "@utils/types.ts";
 import { freshID } from "@utils/database.ts";
+import { Empty, ID } from "@utils/types.ts";
 
-const PREFIX = "UserSessioning.";
+// Define generic types for the concept
+type User = ID;
+type Session = ID;
 
-export type User = ID;
-export type Session = ID;
-
+// Define the shape of the document in the 'sessions' collection
+/**
+ * a set of `Session`s with
+ *   a `user` User
+ */
 interface SessionDoc {
   _id: Session;
   user: User;
-  active_requests: number;
-  active: boolean;
 }
+
+const PREFIX = "Sessioning" + ".";
 
 /**
- * @concept UserSessioning
- * @purpose Maintain authenticated active sessions and track request activity.
+ * @concept Sessioning
+ * @purpose To maintain a user's logged-in state across multiple requests without re-sending credentials.
  */
-export default class UserSessioningConcept {
-  sessions: Collection<SessionDoc>;
+export default class SessioningConcept {
+  public readonly sessions: Collection<SessionDoc>;
 
   constructor(private readonly db: Db) {
-    this.sessions = this.db.collection(PREFIX + "sessions");
+    this.sessions = this.db.collection<SessionDoc>(PREFIX + "sessions");
   }
 
   /**
-   * Action: Begin a new session for a user.
-   * @requires User must be provided.
-   * @effects Creates a new active session with 0 requests.
+   * create (user: User): (session: Session)
+   *
+   * **requires**: true.
+   *
+   * **effects**: creates a new Session `s`; associates it with the given `user`; returns `s` as `session`.
    */
-  async beginSession(
-    { user }: { user: User },
-  ): Promise<{ session: Session } | { error: string }> {
-    if (!user) {
-      return { error: "User is required." };
-    }
-
-    const sessionId = freshID() as Session;
-    await this.sessions.insertOne({
-      _id: sessionId,
-      user,
-      active_requests: 0,
-      active: true,
-    });
-
-    return { session: sessionId };
+  async create({ user }: { user: User }): Promise<{ session: Session }> {
+    const newSessionId = freshID() as Session;
+    const doc: SessionDoc = {
+      _id: newSessionId,
+      user: user,
+    };
+    await this.sessions.insertOne(doc);
+    return { session: newSessionId };
   }
 
   /**
-   * Action: End an existing session.
-   * @requires Session must exist and be active.
-   * @effects Sets session to inactive.
+   * delete (session: Session): ()
+   *
+   * **requires**: the given `session` exists.
+   *
+   * **effects**: removes the session `s`.
    */
-  async endSession(
+  async delete(
     { session }: { session: Session },
-  ): Promise<{ ok: boolean } | { error: string }> {
-    const result = await this.sessions.updateOne(
-      { _id: session, active: true },
-      { $set: { active: false } },
-    );
+  ): Promise<Empty | { error: string }> {
+    const result = await this.sessions.deleteOne({ _id: session });
 
-    if (result.matchedCount === 0) {
-      return { error: "Session not found or already ended." };
+    if (result.deletedCount === 0) {
+      return { error: `Session with id ${session} not found` };
     }
 
-    return { ok: true };
+    return {};
   }
 
   /**
-   * Action: Record a request made during a session.
-   * @requires Session must exist and be active.
-   * @effects Increments active_requests count.
+   * _getUser (session: Session): (user: User)
+   *
+   * **requires**: the given `session` exists.
+   *
+   * **effects**: returns the user associated with the session.
    */
-  async makeRequest(
+  async _getUser(
     { session }: { session: Session },
-  ): Promise<{ ok: boolean } | { error: string }> {
-    const result = await this.sessions.updateOne(
-      { _id: session, active: true },
-      { $inc: { active_requests: 1 } },
-    );
+  ): Promise<Array<{ user: User }> | [{ error: string }]> {
+    const sessionDoc = await this.sessions.findOne({ _id: session });
 
-    if (result.matchedCount === 0) {
-      return { error: "Session not found or inactive." };
+    if (!sessionDoc) {
+      return [{ error: `Session with id ${session} not found` }];
     }
 
-    return { ok: true };
+    return [{ user: sessionDoc.user }];
   }
 }
-

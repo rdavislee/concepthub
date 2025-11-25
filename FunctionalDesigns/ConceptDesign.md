@@ -30,131 +30,83 @@ This single document contains all **Concept** specs (purpose, principle, SSF sta
 
 ## Concepts
 
-### Concept: UserAuthenticating
+### concept: UserAuthentication [User]
 
-**purpose**
-Authenticate principals by issuing and revoking credentials and tokens so other parts of a system can trust user identity.
-
-**principle**
-A visitor registers; later they log in with credentials; while valid, they can log out or rotate tokens; expired or mismatched credentials cannot authenticate.
-
-**state (SSF)**
-
-```
-a set of Users
-a set of Credentials with
-  a user User
-  a hashedPassword String
-  a created DateTime
-a set of AccessTokens with
-  a user User
-  a value String
-  an issuedAt DateTime
-  an expiresAt DateTime
-  a revoked Flag
-a set of RefreshTokens with
-  a user User
-  a value String
-  an issuedAt DateTime
-  an expiresAt DateTime
-  a revoked Flag
-```
-
-**actions**
-
-* **register (email: String, password: String) : (user: Users)**
-  requires: no user exists with `email`; `password` meets policy
-  effects: create user; create credentials with hashed password
-* **login (email: String, password: String) : (access: AccessTokens, refresh: RefreshTokens)**
-  requires: user exists; password matches
-  effects: issue new access+refresh; `revoked=false`
-* **logout (access: AccessTokens) : (ok: Flag)**
-  requires: access exists; `revoked=false`
-  effects: set access.revoked := true
-* **rotateTokens (refresh: RefreshTokens) : (access: AccessTokens, refresh: RefreshTokens)**
-  requires: refresh exists; `revoked=false`; now < refresh.expiresAt
-  effects: revoke old refresh; issue new access+refresh for same user
-* **changePassword (user: Users, old: String, new: String) : (ok: Flag)**
-  requires: credential matches `old`; `new` meets policy
-  effects: update hashedPassword; revoke all access tokens of user
-
-**queries**
-`_userForAccess(access: AccessTokens) : (user: Users)`
-`_isAccessValid(access: AccessTokens) : (valid: Flag)`
+*   **purpose**: To securely verify a user's identity based on credentials.
+*   **principle**: If you register with a unique username and a password, and later provide the same credentials to log in, you will be successfully identified as that user.
+*   **state**:
+    *   a set of `User`s with
+        *   a `username` String (unique)
+        *   a `passwordHash` String
+*   **actions**:
+    *   `register (username: String, password: String): (user: User)`
+        *   **requires**: no User exists with the given `username`.
+        *   **effects**: creates a new User `u`; sets their `username` and a hash of their `password`; returns `u` as `user`.
+    *   `register (username: String, password: String): (error: String)`
+        *   **requires**: a User already exists with the given `username`.
+        *   **effects**: returns an error message.
+    *   `login (username: String, password: String): (user: User)`
+        *   **requires**: a User exists with the given `username` and the `password` matches their `passwordHash`.
+        *   **effects**: returns the matching User `u` as `user`.
+    *   `login (username: String, password: String): (error: String)`
+        *   **requires**: no User exists with the given `username` or the `password` does not match.
+        *   **effects**: returns an error message.
+*   **queries**:
+    *   `_getUserByUsername (username: String): (user: User)`
+        *   **requires**: a User with the given `username` exists.
+        *   **effects**: returns the corresponding User.
 
 ---
 
-### Concept: UserSessioning
+### concept: UserSessioning [User, Session]
 
-**purpose**
-Maintain authenticated, time-boxed sessions that can begin, end, and expire.
-
-**principle**
-After a user presents valid credentials elsewhere, a session begins; while active it can end voluntarily or expire.
-
-**state (SSF)**
-
-```
-a set of Sessions with
-  a user Users
-  a startedAt DateTime
-  an expiresAt DateTime
-  an active Flag
-```
-
-**actions**
-
-* **beginSession (user: Users, ttlMinutes: Number) : (session: Sessions)**
-  requires: ttlMinutes > 0
-  effects: create session; `active=true`; set times
-* **endSession (session: Sessions) : (ok: Flag)**
-  requires: session exists; `active=true`
-  effects: set active := false
-* **system expireSession (session: Sessions) : (expired: Flag)**
-  requires: now ≥ expiresAt; `active=true`
-  effects: set active := false
-
-**queries**
-`_isActive(session: Sessions) : (active: Flag)`
-`_sessionsOf(user: Users) : (session: Sessions)`
+*   **purpose**: To maintain a user's logged-in state across multiple requests without re-sending credentials.
+*   **principle**: After a user is authenticated, a session is created for them. Subsequent requests using that session's ID are treated as being performed by that user, until the session is deleted (logout).
+*   **state**:
+    *   a set of `Session`s with
+        *   a `user` User
+*   **actions**:
+    *   `create (user: User): (session: Session)`
+        *   **requires**: true.
+        *   **effects**: creates a new Session `s`; associates it with the given `user`; returns `s` as `session`.
+    *   `delete (session: Session): ()`
+        *   **requires**: the given `session` exists.
+        *   **effects**: removes the session `s`.
+*   **queries**:
+    *   `_getUser (session: Session): (user: User)`
+        *   **requires**: the given `session` exists.
+        *   **effects**: returns the user associated with the session.
 
 ---
 
-### Concept: UserRequesting [Request, User]
+### Concept: UserRequesting [Request]
 
 **purpose**
-Record lifecycle of user-initiated requests (of any kind) for auditing, rate-limiting, or sync-based authorization.
+Encapsulate incoming external API requests and their asynchronous responses, allowing other concepts to react and supply a response.
 
 **principle**
-When a user initiates a request, it is recorded as started; it either finishes with a result or fails with an error; finished/failed requests are immutable history.
+Every external HTTP call creates a request record with arbitrary input fields; later a single response is produced and returned to the caller; unresolved requests may timeout.
 
 **state (SSF)**
 
 ```
 a set of Requests with
-  a requester Users
-  a kind String
-  a startedAt DateTime
-  an optional finishedAt DateTime
-  an optional error String
-  a status of STARTED or FINISHED or FAILED
+  an input OpaqueRecord
+  an optional response OpaqueRecord
+  a createdAt DateTime
 ```
 
 **actions**
 
-* **start (requester: Users, kind: String, ...args) : (req: Requests)**
+* **request (path: String, ...params) : (request: Requests)**
   requires: true
-  effects: create req with status=STARTED; store args as opaque metadata if needed
-* **finish (req: Requests, resultSummary: String) : (ok: Flag)**
-  requires: req exists; status=STARTED
-  effects: set status=FINISHED; set finishedAt; clear error
-* **fail (req: Requests, message: String) : (ok: Flag)**
-  requires: req exists; status=STARTED
-  effects: set status=FAILED; set finishedAt; set error := message
+  effects: create request with input containing path + params; in-flight until responded
+* **respond (request: Requests, ...result) : (request: Requests)**
+  requires: request exists; no previous response
+  effects: attach result as response; resolve any awaiting parties
 
 **queries**
-`_recentByUser(user: Users) : (req: Requests)`
-`_byKindInWindow(kind: String, from: DateTime, to: DateTime) : (req: Requests)`
+`_awaitResponse(request: Requests) : (response: OpaqueRecord)`
 
 ---
 
@@ -345,221 +297,285 @@ a set of Names with
 
 ### Auth ↔ Session
 
-**LoginStartsSession**
+> Updated for current concept code: `UserAuthenticating.register`, `UserAuthenticating.authenticate`, `UserSessioning.beginSession`, `UserSessioning.endSession`, `UserSessioning.makeRequest`.
+
+**RegisterFlow**
 
 ```
-sync LoginStartsSession
+sync RegisterRequest
 when
-  UserAuthenticating.login (email, password) : (access, refresh)
-where
-  user is UserAuthenticating._userForAccess ( access )
+  UserRequesting.request ( path: "/auth/register", email, password ) : (request)
 then
-  UserSessioning.beginSession ( user, ttlMinutes: 60 )
-```
+  UserAuthenticating.register ( email, password )
 
-**LogoutEndsSessions**
-
-```
-sync LogoutEndsSessions
+sync RegisterRespondSuccess
 when
-  UserAuthenticating.logout ( access ) : (ok)
-where
-  user is UserAuthenticating._userForAccess ( access )
-  in UserSessioning: _sessionsOf ( user ) gets session
+  UserRequesting.request ( path: "/auth/register" ) : (request)
+  UserAuthenticating.register () : (user)
+then
+  UserSessioning.beginSession ( user )
+  UserRequesting.respond ( request, user )
+
+sync RegisterRespondError
+when
+  UserRequesting.request ( path: "/auth/register" ) : (request)
+  UserAuthenticating.register () : (error)
+then
+  UserRequesting.respond ( request, error )
+```
+
+**LoginFlow**
+
+```
+sync LoginRequest
+when
+  UserRequesting.request ( path: "/auth/login", email, password ) : (request)
+then
+  UserAuthenticating.authenticate ( email, password )
+
+sync LoginRespondSuccess
+when
+  UserRequesting.request ( path: "/auth/login" ) : (request)
+  UserAuthenticating.authenticate () : (user)
+then
+  UserSessioning.beginSession ( user: user._id )
+  UserRequesting.respond ( request, user )
+
+sync LoginRespondError
+when
+  UserRequesting.request ( path: "/auth/login" ) : (request)
+  UserAuthenticating.authenticate () : (error)
+then
+  UserRequesting.respond ( request, error )
+```
+
+**LogoutFlow**
+
+```
+sync LogoutRequest
+when
+  UserRequesting.request ( path: "/auth/logout", session ) : (request)
 then
   UserSessioning.endSession ( session )
+
+sync LogoutRespondSuccess
+when
+  UserRequesting.request ( path: "/auth/logout" ) : (request)
+  UserSessioning.endSession () : (ok)
+then
+  UserRequesting.respond ( request, ok )
+
+sync LogoutRespondError
+when
+  UserRequesting.request ( path: "/auth/logout" ) : (request)
+  UserSessioning.endSession () : (error)
+then
+  UserRequesting.respond ( request, error )
 ```
 
 ---
 
-### Request → Action → Finish/Fail
+### Request → Action → Response
 
-**Login**
-
-```
-sync AuthLoginRequest
-when
-  UserRequesting.start ( requester, kind: "/auth/login", email, password ) : (req)
-then
-  UserAuthenticating.login ( email, password )
-
-sync AuthLoginFinish
-when
-  UserRequesting.start ( kind: "/auth/login" ) : (req)
-  UserAuthenticating.login () : (access, refresh)
-then
-  UserRequesting.finish ( req, resultSummary: "ok: login" )
-
-sync AuthLoginError
-when
-  UserRequesting.start ( kind: "/auth/login" ) : (req)
-  UserAuthenticating.login () : (error)
-then
-  UserRequesting.fail ( req, message: error )
-```
-
-**Register**
-
-```
-sync AuthRegisterRequest
-when
-  UserRequesting.start ( requester, kind: "/auth/register", email, password ) : (req)
-then
-  UserAuthenticating.register ( email, password )
-
-sync AuthRegisterFinish
-when
-  UserRequesting.start ( kind: "/auth/register" ) : (req)
-  UserAuthenticating.register () : (user)
-then
-  UserRequesting.finish ( req, resultSummary: "ok: registered" )
-
-sync AuthRegisterError
-when
-  UserRequesting.start ( kind: "/auth/register" ) : (req)
-  UserAuthenticating.register () : (error)
-then
-  UserRequesting.fail ( req, message: error )
-```
-
-**Logout**
-
-```
-sync AuthLogoutRequest
-when
-  UserRequesting.start ( requester, kind: "/auth/logout", access ) : (req)
-then
-  UserAuthenticating.logout ( access )
-
-sync AuthLogoutFinish
-when
-  UserRequesting.start ( kind: "/auth/logout" ) : (req)
-  UserAuthenticating.logout () : (ok)
-then
-  UserRequesting.finish ( req, resultSummary: "ok: logout" )
-```
+> Legacy start/finish/fail replaced by request/respond/_awaitResponse.
 
 ---
 
 ### Registry
 
-**Reserve name**
+All concept registration operations require a valid session. The session maps to a user via `UserSessioning._getUser` and that user becomes the owner (on reserve) or must match the existing owner (on publish/deprecate/yank).
+
+**Reserve name (session required)**
 
 ```
-sync ConceptsReserveName
+sync ReserveNameRequest
 when
-  UserRequesting.start ( requester, kind: "/concepts/reserve", uniqueName ) : (req)
+  UserRequesting.request ( path: "/concepts/reserve", uniqueName, session ) : (request)
+where
+  owner is UserSessioning._getUser ( session )
 then
-  ConceptRegistering.reserveName ( uniqueName, owner: requester )
+  ConceptRegistering.reserveName ( uniqueName, owner )
 
-sync ConceptsReserveNameFinish
+sync ReserveNameRespondSuccess
 when
-  UserRequesting.start ( kind: "/concepts/reserve" ) : (req)
+  UserRequesting.request ( path: "/concepts/reserve" ) : (request)
   ConceptRegistering.reserveName () : (concept)
 then
-  UserRequesting.finish ( req, resultSummary: "ok: reserved" )
-```
+  UserRequesting.respond ( request, concept )
 
-**Publish with owner check**
-
-```
-sync ConceptsPublishRequest
+sync ReserveNameRespondError
 when
-  UserRequesting.start ( requester, kind: "/concepts/publish", concept, semver, artifactUrl ) : (req)
+  UserRequesting.request ( path: "/concepts/reserve" ) : (request)
+  ConceptRegistering.reserveName () : (error)
+then
+  UserRequesting.respond ( request, error )
+```
+
+**Publish version (owner & session required)**
+
+```
+sync PublishVersionRequest
+when
+  UserRequesting.request ( path: "/concepts/publish", concept, semver, artifactUrl, session ) : (request)
 where
+  user is UserSessioning._getUser ( session )
   in ConceptRegistering: _getOwner ( concept ) gets owner
-  requester == owner
+  user == owner
 then
   ConceptRegistering.publishVersion ( concept, semver, artifactUrl )
 
-sync ConceptsPublishForbidden
+sync PublishVersionForbidden
 when
-  UserRequesting.start ( requester, kind: "/concepts/publish", concept ) : (req)
+  UserRequesting.request ( path: "/concepts/publish", concept, semver, artifactUrl, session ) : (request)
 where
+  user is UserSessioning._getUser ( session )
   in ConceptRegistering: _getOwner ( concept ) gets owner
-  requester != owner
+  user != owner
 then
-  UserRequesting.fail ( req, message: "forbidden: not owner" )
+  UserRequesting.respond ( request, error: "forbidden: not owner" )
 
-sync ConceptsPublishFinish
+sync PublishVersionRespondSuccess
 when
-  UserRequesting.start ( kind: "/concepts/publish" ) : (req)
+  UserRequesting.request ( path: "/concepts/publish" ) : (request)
   ConceptRegistering.publishVersion () : (version)
 then
-  UserRequesting.finish ( req, resultSummary: "ok: published" )
-```
+  UserRequesting.respond ( request, version )
 
-**Deprecate / Yank (owner-gated)**
-
-```
-sync ConceptsDeprecate
+sync PublishVersionRespondError
 when
-  UserRequesting.start ( requester, kind: "/concepts/deprecate", version ) : (req)
+  UserRequesting.request ( path: "/concepts/publish" ) : (request)
+  ConceptRegistering.publishVersion () : (error)
+then
+  UserRequesting.respond ( request, error )
+```
+
+**Deprecate / Yank (owner & session required)**
+
+```
+sync DeprecateRequest
+when
+  UserRequesting.request ( path: "/concepts/deprecate", version, session ) : (request)
 where
+  user is UserSessioning._getUser ( session )
   in ConceptRegistering: _getOwnerOfVersion ( version ) gets owner
-  requester == owner
+  user == owner
 then
   ConceptRegistering.deprecate ( version )
 
-sync ConceptsYank
+sync DeprecateForbidden
 when
-  UserRequesting.start ( requester, kind: "/concepts/yank", version ) : (req)
+  UserRequesting.request ( path: "/concepts/deprecate", version, session ) : (request)
 where
+  user is UserSessioning._getUser ( session )
   in ConceptRegistering: _getOwnerOfVersion ( version ) gets owner
-  requester == owner
+  user != owner
+then
+  UserRequesting.respond ( request, error: "forbidden: not owner" )
+
+sync DeprecateRespond
+when
+  UserRequesting.request ( path: "/concepts/deprecate" ) : (request)
+  ConceptRegistering.deprecate () : (ok)
+then
+  UserRequesting.respond ( request, ok )
+
+sync YankRequest
+when
+  UserRequesting.request ( path: "/concepts/yank", version, session ) : (request)
+where
+  user is UserSessioning._getUser ( session )
+  in ConceptRegistering: _getOwnerOfVersion ( version ) gets owner
+  user == owner
 then
   ConceptRegistering.yank ( version )
+
+sync YankForbidden
+when
+  UserRequesting.request ( path: "/concepts/yank", version, session ) : (request)
+where
+  user is UserSessioning._getUser ( session )
+  in ConceptRegistering: _getOwnerOfVersion ( version ) gets owner
+  user != owner
+then
+  UserRequesting.respond ( request, error: "forbidden: not owner" )
+
+sync YankRespond
+when
+  UserRequesting.request ( path: "/concepts/yank" ) : (request)
+  ConceptRegistering.yank () : (ok)
+then
+  UserRequesting.respond ( request, ok )
 ```
 
 ---
 
 ### Likes & Downloads
 
-**Like / Unlike**
+**Like / Unlike (session required)**
 
 ```
 sync LikeRequest
 when
-  UserRequesting.start ( requester, kind: "/concepts/like", item ) : (req)
+  UserRequesting.request ( path: "/concepts/like", item, session ) : (request)
+where
+  user is UserSessioning._getUser ( session )
 then
-  Liking.like ( item, requester )
+  UserSessioning.makeRequest ( session )
+  Liking.like ( item, user )
 
-sync LikeFinish
+sync LikeRespondSuccess
 when
-  UserRequesting.start ( kind: "/concepts/like" ) : (req)
+  UserRequesting.request ( path: "/concepts/like" ) : (request)
   Liking.like () : (ok)
 then
-  UserRequesting.finish ( req, resultSummary: "ok: liked" )
+  UserRequesting.respond ( request, ok )
+
+sync LikeRespondError
+when
+  UserRequesting.request ( path: "/concepts/like" ) : (request)
+  Liking.like () : (error)
+then
+  UserRequesting.respond ( request, error )
 
 sync UnlikeRequest
 when
-  UserRequesting.start ( requester, kind: "/concepts/unlike", item ) : (req)
+  UserRequesting.request ( path: "/concepts/unlike", item, session ) : (request)
+where
+  user is UserSessioning._getUser ( session )
 then
-  Liking.unlike ( item, requester )
+  UserSessioning.makeRequest ( session )
+  Liking.unlike ( item, user )
 
-sync UnlikeFinish
+sync UnlikeRespondSuccess
 when
-  UserRequesting.start ( kind: "/concepts/unlike" ) : (req)
+  UserRequesting.request ( path: "/concepts/unlike" ) : (request)
   Liking.unlike () : (ok)
 then
-  UserRequesting.finish ( req, resultSummary: "ok: unliked" )
-```
+  UserRequesting.respond ( request, ok )
 
-**Record download**
-
-```
-sync DownloadRecord
+sync UnlikeRespondError
 when
-  UserRequesting.start ( requester, kind: "/concepts/download", item ) : (req)
+  UserRequesting.request ( path: "/concepts/unlike" ) : (request)
+  Liking.unlike () : (error)
 then
-  DownloadAnalyzing.record ( item, requester, at: now )
+  UserRequesting.respond ( request, error )
+```
 
-sync DownloadFinish
+**Record download (public)**
+
+```
+sync DownloadRequest
 when
-  UserRequesting.start ( kind: "/concepts/download" ) : (req)
+  UserRequesting.request ( path: "/concepts/download", item, user ) : (request)
+then
+  DownloadAnalyzing.record ( item, user, at: now )
+
+sync DownloadRespond
+when
+  UserRequesting.request ( path: "/concepts/download" ) : (request)
   DownloadAnalyzing.record () : (download)
 then
-  UserRequesting.finish ( req, resultSummary: "ok: recorded" )
+  UserRequesting.respond ( request, download )
 ```
 
 ---

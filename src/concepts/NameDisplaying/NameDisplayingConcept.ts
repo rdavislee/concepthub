@@ -76,21 +76,30 @@ export default class NameDisplayingConcept {
   async search(
     { text }: { text: string },
   ): Promise<Array<{ conceptId: Concept; displayName: string }>> {
-    const trimmed = text?.trim() ?? "";
-    const filter = trimmed
-      ? {
-        displayName: {
-          $regex: trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-          $options: "i",
-        },
-      }
-      : {};
-    const docs = await this.concepts.find(filter)
+    const query = (text ?? "").trim().toLowerCase();
+    // If empty, return all concepts.
+    const docs = await this.concepts.find({})
       .project({ _id: 1, displayName: 1 })
       .toArray();
-    return docs.map((doc) => ({
-      conceptId: doc._id as Concept,
-      displayName: doc.displayName,
+    if (!query) {
+      return docs.map((d) => ({
+        conceptId: d._id as Concept,
+        displayName: d.displayName,
+      }));
+    }
+    // Case-insensitive subsequence match: all chars of query appear in order in displayName.
+    const matches = docs.filter((d) => {
+      const name = d.displayName.toLowerCase();
+      let i = 0;
+      for (const c of name) {
+        if (c === query[i]) i++;
+        if (i === query.length) return true;
+      }
+      return false;
+    });
+    return matches.map((d) => ({
+      conceptId: d._id as Concept,
+      displayName: d.displayName,
     }));
   }
 }

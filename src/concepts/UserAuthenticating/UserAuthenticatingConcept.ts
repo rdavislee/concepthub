@@ -1,93 +1,127 @@
 import { Collection, Db } from "npm:mongodb";
 import { ID } from "@utils/types.ts";
 import { freshID } from "@utils/database.ts";
-import * as bcrypt from "npm:bcryptjs";
 
-const PREFIX = "UserAuthenticating.";
+// A simple helper function to hash passwords using the Web Crypto API.
+// In a production system, a more robust, salted hashing algorithm like Argon2 or bcrypt would be preferred.
+async function hashPassword(password: string): Promise<string> {
+  const data = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
-export type User = ID;
+// Collection prefix for this concept
+const PREFIX = "UserAuthentication" + ".";
 
+// Generic types of this concept
+type User = ID;
+
+/**
+ * Represents the state of a single user in the database.
+ * a set of `User`s with
+ *   a `username` String (unique)
+ *   a `passwordHash` String
+ */
 interface UserDoc {
   _id: User;
-  email: string;
-  password: string;
-  access_token?: string;
-  refresh_token?: string;
+  username: string;
+  passwordHash: string;
 }
 
 /**
- * @concept UserAuthenticating
- * @purpose Authenticate users by issuing and revoking credentials and tokens.
+ * @concept UserAuthentication
+ * @purpose To securely verify a user's identity based on credentials.
  */
-export default class UserAuthenticatingConcept {
+export default class UserAuthenticationConcept {
   users: Collection<UserDoc>;
 
   constructor(private readonly db: Db) {
     this.users = this.db.collection(PREFIX + "users");
+    // Ensure username is unique at the database level
+    this.users.createIndex({ username: 1 }, { unique: true });
   }
 
   /**
-   * Action: Register a new user.
-   * @requires email must be unique
-   * @effects Creates a new user with hashed password.
+   * register (username: String, password: String): (user: User) | (error: String)
+   *
+   * **requires**: no User exists with the given `username`.
+   * **effects**: creates a new User `u`; sets their `username` and a hash of their `password`; returns `u` as `user`.
+   *
+   * **requires**: a User already exists with the given `username`.
+   * **effects**: returns an error message.
    */
   async register(
-    { email, password }: { email: string; password: string },
+    { username, password }: { username: string; password: string },
   ): Promise<{ user: User } | { error: string }> {
-    if (!email || !password) {
-      return { error: "Email and password are required." };
+    // Check if a user with this username already exists.
+    // We also rely on the unique index in MongoDB, but this provides a cleaner error message.
+    try {
+      const existingUser = await this.users.findOne({ username });
+      if (existingUser) {
+        return { error: "Username already exists" };
+      }
+
+      const passwordHash = await hashPassword(password);
+      const newUser: UserDoc = {
+        _id: freshID(),
+        username,
+        passwordHash,
+      };
+
+      await this.users.insertOne(newUser);
+      return { user: newUser._id };
+    } catch (e) {
+      // Catch potential duplicate key error from the database index
+      if (e.code === 11000) {
+        return { error: "Username already exists" };
+      }
+      // For other unexpected errors, re-throw or handle appropriately
+      throw e;
     }
-
-    const existingUser = await this.users.findOne({ email });
-    if (existingUser) {
-      return { error: "User with this email already exists." };
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const userId = freshID() as User;
-
-    await this.users.insertOne({
-      _id: userId,
-      email,
-      password: hashedPassword,
-    });
-
-    return { user: userId };
   }
 
   /**
-   * Action: Authenticate a user.
-   * @requires User must exist and password must match.
-   * @effects Updates user with new access and refresh tokens.
+   * login (username: String, password: String): (user: User) | (error: String)
+   *
+   * **requires**: a User exists with the given `username` and the `password` matches their `passwordHash`.
+   * **effects**: returns the matching User `u` as `user`.
+   *
+   * **requires**: no User exists with the given `username` or the `password` does not match.
+   * **effects**: returns an error message.
    */
-  async authenticate(
-    { email, password }: { email: string; password: string },
-  ): Promise<{ user: UserDoc } | { error: string }> {
-    const user = await this.users.findOne({ email });
+  async login(
+    { username, password }: { username: string; password: string },
+  ): Promise<{ user: User } | { error: string }> {
+    const user = await this.users.findOne({ username });
+
+    // To prevent timing attacks and username enumeration, use a generic error message.
     if (!user) {
-      return { error: "Invalid email or password." };
+      return { error: "Invalid username or password" };
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    if (!passwordMatch) {
-      return { error: "Invalid email or password." };
+    const providedPasswordHash = await hashPassword(password);
+    if (user.passwordHash !== providedPasswordHash) {
+      return { error: "Invalid username or password" };
     }
 
-    const access_token = crypto.randomUUID();
-    const refresh_token = crypto.randomUUID();
+    return { user: user._id };
+  }
 
-    await this.users.updateOne(
-      { _id: user._id },
-      { $set: { access_token, refresh_token } },
-    );
-
-    return {
-      user: {
-        ...user,
-        access_token,
-        refresh_token,
-      },
-    };
+  /**
+   * _getUserByUsername (username: String): (user: User)
+   *
+   * **requires**: a User with the given `username` exists.
+   * **effects**: returns the corresponding User.
+   */
+  async _getUserByUsername(
+    { username }: { username: string },
+  ): Promise<{ user: User }[]> {
+    const user = await this.users.findOne({ username });
+    if (user) {
+      return [{ user: user._id }];
+    }
+    // As per specification, queries must return an array.
+    return [];
   }
 }
-
