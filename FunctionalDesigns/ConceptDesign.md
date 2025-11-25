@@ -192,6 +192,7 @@ a set of Versions with
 `_getOwner(concept: Concepts) : (owner: Author)`
 `_getOwnerOfVersion(version: Versions) : (owner: Author)`
 `_getUniqueName(concept: Concepts) : (uniqueName: String)`
+`_artifactUrlOfVersion(version: Versions) : (artifactUrl: String)`
 
 ---
 
