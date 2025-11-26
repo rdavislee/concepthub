@@ -1,75 +1,387 @@
-// I HAVE NOT UPDATED THIS TEST - THIS IS DAVIS'S ORIGINAL TEST FILE
+import { assertEquals, assertExists } from "jsr:@std/assert";
+import { testDb } from "@utils/database.ts";
+import { ID } from "@utils/types.ts";
+import UserAuthenticationConcept from "./UserAuthenticatingConcept.ts";
 
-// import { assertEquals, assertExists, assertNotEquals } from "jsr:@std/assert";
-// import { testDb } from "@utils/database.ts";
-// import UserAuthenticatingConcept, {
-//   User,
-// } from "./UserAuthenticatingConcept.ts";
+const usernameA = "alice";
+const passwordA = "password123";
+const usernameB = "bob";
+const passwordB = "securepass456";
 
-// Deno.test("UserAuthenticating: Register and Authenticate Flow", async () => {
-//   const [db, client] = await testDb();
-//   const authConcept = new UserAuthenticatingConcept(db);
+Deno.test("Principle: user registers then logs in with credentials", async () => {
+  const [db, client] = await testDb();
+  const auth = new UserAuthenticationConcept(db);
+  try {
+    console.log("Testing principle: register -> login flow");
 
-//   try {
-//     const email = "test@example.com";
-//     const password = "securePassword123";
+    // 1. User registers with username and password
+    console.log(`Registering user: ${usernameA}`);
+    const registerResult = await auth.register({
+      username: usernameA,
+      password: passwordA,
+    });
+    assertEquals(
+      "error" in registerResult,
+      false,
+      "Registration should succeed for new username",
+    );
+    assertExists(
+      "user" in registerResult ? registerResult.user : null,
+      "Registration should return a user ID",
+    );
+    const { user: userIdA } = registerResult as { user: ID };
+    console.log(`Registered user ID: ${userIdA}`);
 
-//     // 1. Register a new user
-//     const registerResult = await authConcept.register({ email, password });
-//     assertNotEquals(
-//       "error" in registerResult,
-//       true,
-//       "Registration should succeed",
-//     );
-//     const { user: userId } = registerResult as { user: User };
-//     assertExists(userId);
+    // 2. User can login with correct credentials
+    console.log(`Logging in user: ${usernameA}`);
+    const loginResult = await auth.login({
+      username: usernameA,
+      password: passwordA,
+    });
+    assertEquals(
+      "error" in loginResult,
+      false,
+      "Login should succeed with correct credentials",
+    );
+    const { user: loggedInUser } = loginResult as { user: ID };
+    assertEquals(
+      loggedInUser,
+      userIdA,
+      "Login should return the same user ID as registration",
+    );
+    console.log(`Login successful, user ID: ${loggedInUser}`);
 
-//     // 2. Fail to register duplicate
-//     const duplicateResult = await authConcept.register({ email, password });
-//     assertEquals(
-//       "error" in duplicateResult,
-//       true,
-//       "Duplicate registration should fail",
-//     );
+    // 3. Login fails with wrong password
+    console.log(`Attempting login with wrong password for: ${usernameA}`);
+    const wrongPasswordResult = await auth.login({
+      username: usernameA,
+      password: "wrongpassword",
+    });
+    assertEquals(
+      "error" in wrongPasswordResult,
+      true,
+      "Login should fail with incorrect password",
+    );
+    if ("error" in wrongPasswordResult) {
+      assertEquals(
+        wrongPasswordResult.error,
+        "Invalid username or password",
+        "Error message should be generic for security",
+      );
+      console.log(`Login correctly rejected with wrong password`);
+    }
 
-//     // 3. Authenticate successfully
-//     const authResult = await authConcept.authenticate({ email, password });
-//     assertNotEquals(
-//       "error" in authResult,
-//       true,
-//       "Authentication should succeed",
-//     );
+    // 4. Login fails with non-existent username
+    console.log(`Attempting login with non-existent username`);
+    const wrongUsernameResult = await auth.login({
+      username: "nonexistent",
+      password: passwordA,
+    });
+    assertEquals(
+      "error" in wrongUsernameResult,
+      true,
+      "Login should fail with non-existent username",
+    );
+    if ("error" in wrongUsernameResult) {
+      assertEquals(
+        wrongUsernameResult.error,
+        "Invalid username or password",
+        "Error message should be generic for security",
+      );
+      console.log(`Login correctly rejected with non-existent username`);
+    }
 
-//     if ("user" in authResult) {
-//       const { user } = authResult;
-//       assertEquals(user.email, email);
-//       assertExists(user.access_token);
-//       assertExists(user.refresh_token);
-//       assertEquals(user._id, userId);
-//     }
+    console.log(
+      "Principle trace complete: registration and authentication flow verified",
+    );
+  } finally {
+    await client.close();
+  }
+});
 
-//     // 4. Fail authentication with wrong password
-//     const wrongPassResult = await authConcept.authenticate({
-//       email,
-//       password: "wrong",
-//     });
-//     assertEquals(
-//       "error" in wrongPassResult,
-//       true,
-//       "Auth with wrong password should fail",
-//     );
+Deno.test("Action: register requires unique username", async () => {
+  const [db, client] = await testDb();
+  const auth = new UserAuthenticationConcept(db);
+  try {
+    console.log("Testing register action: unique username requirement");
 
-//     // 5. Fail authentication with non-existent user
-//     const noUserResult = await authConcept.authenticate({
-//       email: "nobody@example.com",
-//       password,
-//     });
-//     assertEquals(
-//       "error" in noUserResult,
-//       true,
-//       "Auth with unknown user should fail",
-//     );
-//   } finally {
-//     await client.close();
-//   }
-// });
+    // First registration should succeed
+    console.log(`Registering first user: ${usernameA}`);
+    const firstRegister = await auth.register({
+      username: usernameA,
+      password: passwordA,
+    });
+    assertEquals(
+      "error" in firstRegister,
+      false,
+      "First registration should succeed",
+    );
+    console.log("First registration successful");
+
+    // Duplicate registration should fail
+    console.log(`Attempting duplicate registration: ${usernameA}`);
+    const duplicateRegister = await auth.register({
+      username: usernameA,
+      password: "differentpassword",
+    });
+    assertEquals(
+      "error" in duplicateRegister,
+      true,
+      "Duplicate username registration should fail",
+    );
+    if ("error" in duplicateRegister) {
+      assertEquals(
+        duplicateRegister.error,
+        "Username already exists",
+        "Error message should indicate username conflict",
+      );
+      console.log("Duplicate registration correctly rejected");
+    }
+
+    // Verify effect: only one user exists with this username
+    const userQuery = await auth._getUserByUsername({ username: usernameA });
+    assertEquals(
+      userQuery.length,
+      1,
+      "Only one user should exist with the username",
+    );
+    console.log("Requirement verified: unique username enforced");
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Action: register effects - creates user with hashed password", async () => {
+  const [db, client] = await testDb();
+  const auth = new UserAuthenticationConcept(db);
+  try {
+    console.log("Testing register action: effects verification");
+
+    // Register a new user
+    console.log(`Registering user: ${usernameB}`);
+    const registerResult = await auth.register({
+      username: usernameB,
+      password: passwordB,
+    });
+    assertEquals(
+      "error" in registerResult,
+      false,
+      "Registration should succeed",
+    );
+    const { user: userId } = registerResult as { user: ID };
+    console.log(`Registered user ID: ${userId}`);
+
+    // Verify effect: user can be queried by username
+    const userQuery = await auth._getUserByUsername({ username: usernameB });
+    assertEquals(
+      userQuery.length,
+      1,
+      "User should be retrievable after registration",
+    );
+    assertEquals(
+      userQuery[0].user,
+      userId,
+      "Queried user ID should match registered user ID",
+    );
+    console.log("Effect verified: user created and retrievable");
+
+    // Verify effect: password is hashed (user can login with original password)
+    const loginResult = await auth.login({
+      username: usernameB,
+      password: passwordB,
+    });
+    assertEquals(
+      "error" in loginResult,
+      false,
+      "User should be able to login with original password",
+    );
+    const { user: loggedInUser } = loginResult as { user: ID };
+    assertEquals(
+      loggedInUser,
+      userId,
+      "Login should return the same user ID",
+    );
+    console.log(
+      "Effect verified: password hash allows successful authentication",
+    );
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Action: login requires correct username and password", async () => {
+  const [db, client] = await testDb();
+  const auth = new UserAuthenticationConcept(db);
+  try {
+    console.log("Testing login action: requirements verification");
+
+    // Register a user first
+    console.log(`Registering user: ${usernameA}`);
+    const registerResult = await auth.register({
+      username: usernameA,
+      password: passwordA,
+    });
+    assertEquals(
+      "error" in registerResult,
+      false,
+      "Registration should succeed",
+    );
+    const { user: userId } = registerResult as { user: ID };
+    console.log(`Registered user ID: ${userId}`);
+
+    // Test: login with correct credentials should succeed
+    console.log(`Logging in with correct credentials`);
+    const correctLogin = await auth.login({
+      username: usernameA,
+      password: passwordA,
+    });
+    assertEquals(
+      "error" in correctLogin,
+      false,
+      "Login with correct credentials should succeed",
+    );
+    const { user: loggedInUser } = correctLogin as { user: ID };
+    assertEquals(
+      loggedInUser,
+      userId,
+      "Login should return the registered user ID",
+    );
+    console.log("Requirement met: correct credentials allow login");
+
+    // Test: login with wrong password should fail
+    console.log(`Attempting login with wrong password`);
+    const wrongPasswordLogin = await auth.login({
+      username: usernameA,
+      password: "wrongpassword",
+    });
+    assertEquals(
+      "error" in wrongPasswordLogin,
+      true,
+      "Login with wrong password should fail",
+    );
+    if ("error" in wrongPasswordLogin) {
+      assertEquals(
+        wrongPasswordLogin.error,
+        "Invalid username or password",
+        "Error message should be generic",
+      );
+      console.log("Requirement enforced: wrong password rejected");
+    }
+
+    // Test: login with non-existent username should fail
+    console.log(`Attempting login with non-existent username`);
+    const wrongUsernameLogin = await auth.login({
+      username: "nonexistent",
+      password: passwordA,
+    });
+    assertEquals(
+      "error" in wrongUsernameLogin,
+      true,
+      "Login with non-existent username should fail",
+    );
+    if ("error" in wrongUsernameLogin) {
+      assertEquals(
+        wrongUsernameLogin.error,
+        "Invalid username or password",
+        "Error message should be generic",
+      );
+      console.log("Requirement enforced: non-existent username rejected");
+    }
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Action: login effects - returns user ID on success", async () => {
+  const [db, client] = await testDb();
+  const auth = new UserAuthenticationConcept(db);
+  try {
+    console.log("Testing login action: effects verification");
+
+    // Register a user
+    console.log(`Registering user: ${usernameB}`);
+    const registerResult = await auth.register({
+      username: usernameB,
+      password: passwordB,
+    });
+    assertEquals(
+      "error" in registerResult,
+      false,
+      "Registration should succeed",
+    );
+    const { user: registeredUserId } = registerResult as { user: ID };
+    console.log(`Registered user ID: ${registeredUserId}`);
+
+    // Login and verify effect: returns the correct user ID
+    console.log(`Logging in user: ${usernameB}`);
+    const loginResult = await auth.login({
+      username: usernameB,
+      password: passwordB,
+    });
+    assertEquals(
+      "error" in loginResult,
+      false,
+      "Login should succeed",
+    );
+    const { user: loggedInUserId } = loginResult as { user: ID };
+    assertEquals(
+      loggedInUserId,
+      registeredUserId,
+      "Login should return the same user ID as registration",
+    );
+    console.log(`Effect verified: login returns user ID ${loggedInUserId}`);
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Query: _getUserByUsername returns user when exists", async () => {
+  const [db, client] = await testDb();
+  const auth = new UserAuthenticationConcept(db);
+  try {
+    console.log("Testing query: _getUserByUsername");
+
+    // Register a user
+    console.log(`Registering user: ${usernameA}`);
+    const registerResult = await auth.register({
+      username: usernameA,
+      password: passwordA,
+    });
+    assertEquals(
+      "error" in registerResult,
+      false,
+      "Registration should succeed",
+    );
+    const { user: userId } = registerResult as { user: ID };
+    console.log(`Registered user ID: ${userId}`);
+
+    // Query for existing user
+    console.log(`Querying for user: ${usernameA}`);
+    const userQuery = await auth._getUserByUsername({ username: usernameA });
+    assertEquals(
+      userQuery.length,
+      1,
+      "Query should return exactly one result for existing user",
+    );
+    assertEquals(
+      userQuery[0].user,
+      userId,
+      "Queried user ID should match registered user ID",
+    );
+    console.log(`Query successful: found user ID ${userQuery[0].user}`);
+
+    // Query for non-existent user
+    console.log(`Querying for non-existent user`);
+    const nonExistentQuery = await auth._getUserByUsername({
+      username: "nonexistent",
+    });
+    assertEquals(
+      nonExistentQuery.length,
+      0,
+      "Query should return empty array for non-existent user",
+    );
+    console.log("Query correctly returns empty array for non-existent user");
+  } finally {
+    await client.close();
+  }
+});

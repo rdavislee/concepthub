@@ -148,7 +148,7 @@ async function discoverSyncs(baseDir: string): Promise<SyncInfo[]> {
         .replace(/\.sync\.ts$/, "")
         .replaceAll(path.SEPARATOR, ".");
 
-      const importAlias = `sync_${prefix.replaceAll(".", "_")}`;
+      const importAlias = `sync_${prefix.replaceAll(".", "_").replaceAll("-", "_")}`;
       // Ensure import path uses forward slashes for cross-platform compatibility
       const importPath = `./${relativePath.replaceAll(path.SEPARATOR, "/")}`;
 

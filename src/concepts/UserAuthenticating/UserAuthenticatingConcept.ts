@@ -71,7 +71,7 @@ export default class UserAuthenticationConcept {
 
       await this.users.insertOne(newUser);
       return { user: newUser._id };
-    } catch (e) {
+    } catch (e: any) {
       // Catch potential duplicate key error from the database index
       if (e.code === 11000) {
         return { error: "Username already exists" };
