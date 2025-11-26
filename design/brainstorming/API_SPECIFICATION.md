@@ -496,6 +496,52 @@ Query: Finds concepts by name substring (case-insensitive).
 
 ---
 
+#### `POST /api/ConceptRegistering/_getAll`
+
+Query: Returns all concepts in the registry with their associated versions.
+
+**Request Body:**
+```json
+{}
+```
+
+**Response:**
+```json
+[
+  {
+    "concept": "concept456",
+    "uniqueName": "MyAwesomeConcept",
+    "owner": "author123",
+    "versions": [
+      {
+        "version": "version789",
+        "semver": "1.0.0",
+        "artifactUrl": "https://example.com/concepts/myconcept-v1.0.0.ts",
+        "status": "PUBLISHED",
+        "publishedAt": "2024-01-15T10:30:00.000Z"
+      },
+      {
+        "version": "version790",
+        "semver": "1.1.0",
+        "artifactUrl": "https://example.com/concepts/myconcept-v1.1.0.ts",
+        "status": "PUBLISHED",
+        "publishedAt": "2024-02-01T14:20:00.000Z"
+      }
+    ]
+  },
+  {
+    "concept": "concept789",
+    "uniqueName": "AnotherConcept",
+    "owner": "author456",
+    "versions": []
+  }
+]
+```
+
+**Note:** Returns an array of all concepts, each with its complete version history. Concepts without versions will have an empty `versions` array.
+
+---
+
 #### `POST /api/ConceptRegistering/_getOwner`
 
 Query: Returns the owner of a concept.

@@ -1,9 +1,5 @@
 import { actions, Sync } from "@engine";
-import {
-  ConceptRegistering,
-  Requesting,
-  UserSessioning,
-} from "@concepts";
+import { ConceptRegistering, Requesting, UserSessioning } from "@concepts";
 
 // Reserve name (session required)
 export const ReserveNameRequest: Sync = (

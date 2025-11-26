@@ -64,7 +64,7 @@ export default class ConceptRegisteringConcept {
    * **effects** create concept with owner
    */
   async reserveName(
-    { uniqueName, owner }: { uniqueName: string; owner: Author }
+    { uniqueName, owner }: { uniqueName: string; owner: Author },
   ): Promise<{ concept: Concept } | { error: string }> {
     if (!uniqueName?.trim()) {
       return { error: "uniqueName is required" };
@@ -93,7 +93,11 @@ export default class ConceptRegisteringConcept {
    * **effects** create version; status=PUBLISHED; set publishedAt
    */
   async publishVersion(
-    { concept, semver, artifactUrl }: { concept: Concept; semver: string; artifactUrl: string }
+    { concept, semver, artifactUrl }: {
+      concept: Concept;
+      semver: string;
+      artifactUrl: string;
+    },
   ): Promise<{ version: Version } | { error: string }> {
     if (!concept) {
       return { error: "concept is required" };
@@ -112,7 +116,9 @@ export default class ConceptRegisteringConcept {
     // Check no identical semver unless YANKED
     const existingVersion = await this.versions.findOne({ concept, semver });
     if (existingVersion && existingVersion.status !== "YANKED") {
-      return { error: "A version with this semver already exists and is not YANKED" };
+      return {
+        error: "A version with this semver already exists and is not YANKED",
+      };
     }
     const versionId = freshID() as Version;
     await this.versions.insertOne({
@@ -134,7 +140,7 @@ export default class ConceptRegisteringConcept {
    * **effects** set status := DEPRECATED
    */
   async deprecate(
-    { version }: { version: Version }
+    { version }: { version: Version },
   ): Promise<{ ok: boolean } | { error: string }> {
     if (!version) {
       return { error: "version is required" };
@@ -148,7 +154,7 @@ export default class ConceptRegisteringConcept {
     }
     await this.versions.updateOne(
       { _id: version },
-      { $set: { status: "DEPRECATED" } }
+      { $set: { status: "DEPRECATED" } },
     );
     return { ok: true };
   }
@@ -161,7 +167,7 @@ export default class ConceptRegisteringConcept {
    * **effects** set status := YANKED
    */
   async yank(
-    { version }: { version: Version }
+    { version }: { version: Version },
   ): Promise<{ ok: boolean } | { error: string }> {
     if (!version) {
       return { error: "version is required" };
@@ -170,12 +176,14 @@ export default class ConceptRegisteringConcept {
     if (!versionDoc) {
       return { error: "Version does not exist" };
     }
-    if (versionDoc.status !== "PUBLISHED" && versionDoc.status !== "DEPRECATED") {
+    if (
+      versionDoc.status !== "PUBLISHED" && versionDoc.status !== "DEPRECATED"
+    ) {
       return { error: "Version must be PUBLISHED or DEPRECATED to yank" };
     }
     await this.versions.updateOne(
       { _id: version },
-      { $set: { status: "YANKED" } }
+      { $set: { status: "YANKED" } },
     );
     return { ok: true };
   }
@@ -186,7 +194,7 @@ export default class ConceptRegisteringConcept {
    * Returns the most recently published version for the given concept.
    */
   async _latestPublished(
-    { concept }: { concept: Concept }
+    { concept }: { concept: Concept },
   ): Promise<Array<{ version: Version }>> {
     const versionDoc = await this.versions
       .find({ concept, status: "PUBLISHED" })
@@ -205,7 +213,7 @@ export default class ConceptRegisteringConcept {
    * Returns concepts whose uniqueName contains the given substring.
    */
   async _findByName(
-    { substring }: { substring: string }
+    { substring }: { substring: string },
   ): Promise<Array<{ concept: Concept }>> {
     const docs = await this.concepts
       .find({ uniqueName: { $regex: substring, $options: "i" } })
@@ -214,12 +222,60 @@ export default class ConceptRegisteringConcept {
   }
 
   /**
+   * _getAll() : (concept: Concepts, uniqueName: String, owner: Author, versions: Array<{version: Versions, semver: String, artifactUrl: String, status: VersionStatus, publishedAt: Date}>)
+   *
+   * Returns all concepts in the registry with their associated versions.
+   */
+  async _getAll(): Promise<
+    Array<{
+      concept: Concept;
+      uniqueName: string;
+      owner: Author;
+      versions: Array<{
+        version: Version;
+        semver: string;
+        artifactUrl: string;
+        status: VersionStatus;
+        publishedAt: Date;
+      }>;
+    }>
+  > {
+    const conceptDocs = await this.concepts.find({}).toArray();
+    const allVersions = await this.versions.find({}).toArray();
+
+    // Group versions by concept
+    const versionsByConcept = new Map<Concept, typeof allVersions>();
+    for (const version of allVersions) {
+      const existing = versionsByConcept.get(version.concept) || [];
+      existing.push(version);
+      versionsByConcept.set(version.concept, existing);
+    }
+
+    // Build result with concepts and their versions
+    return conceptDocs.map((conceptDoc) => {
+      const conceptVersions = versionsByConcept.get(conceptDoc._id) || [];
+      return {
+        concept: conceptDoc._id,
+        uniqueName: conceptDoc.uniqueName,
+        owner: conceptDoc.owner,
+        versions: conceptVersions.map((v) => ({
+          version: v._id,
+          semver: v.semver,
+          artifactUrl: v.artifactUrl,
+          status: v.status,
+          publishedAt: v.publishedAt,
+        })),
+      };
+    });
+  }
+
+  /**
    * _getOwner(concept: Concepts) : (owner: Author)
    *
    * Returns the owner of the given concept.
    */
   async _getOwner(
-    { concept }: { concept: Concept }
+    { concept }: { concept: Concept },
   ): Promise<Array<{ owner: Author }>> {
     const conceptDoc = await this.concepts.findOne({ _id: concept });
     if (!conceptDoc) {
@@ -234,7 +290,7 @@ export default class ConceptRegisteringConcept {
    * Returns the owner of the concept that the version belongs to.
    */
   async _getOwnerOfVersion(
-    { version }: { version: Version }
+    { version }: { version: Version },
   ): Promise<Array<{ owner: Author }>> {
     const versionDoc = await this.versions.findOne({ _id: version });
     if (!versionDoc) {
@@ -253,7 +309,7 @@ export default class ConceptRegisteringConcept {
    * Returns the uniqueName of the given concept.
    */
   async _getUniqueName(
-    { concept }: { concept: Concept }
+    { concept }: { concept: Concept },
   ): Promise<Array<{ uniqueName: string }>> {
     const conceptDoc = await this.concepts.findOne({ _id: concept });
     if (!conceptDoc) {
@@ -268,7 +324,7 @@ export default class ConceptRegisteringConcept {
    * Returns the artifactUrl of the given version.
    */
   async _artifactUrlOfVersion(
-    { version }: { version: Version }
+    { version }: { version: Version },
   ): Promise<Array<{ artifactUrl: string }>> {
     const versionDoc = await this.versions.findOne({ _id: version });
     if (!versionDoc) {
@@ -277,4 +333,3 @@ export default class ConceptRegisteringConcept {
     return [{ artifactUrl: versionDoc.artifactUrl }];
   }
 }
-
