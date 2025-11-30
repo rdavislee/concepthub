@@ -119,7 +119,8 @@ export default class UserProfileDisplayingConcept {
 
   /**
    * Query: _profileOf(user: Users) : (displayName: String, avatarUrl: String, bio: String)
-   * returns the profile information for the given user
+   * requires: user exists
+   * effects: returns the profile fields for the user
    */
   async _profileOf(
     { user }: { user: User },

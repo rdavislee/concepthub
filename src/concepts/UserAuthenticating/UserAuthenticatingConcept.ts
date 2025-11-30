@@ -12,7 +12,7 @@ async function hashPassword(password: string): Promise<string> {
 }
 
 // Collection prefix for this concept
-const PREFIX = "UserAuthentication" + ".";
+const PREFIX = "UserAuthenticating" + ".";
 
 // Generic types of this concept
 type User = ID;
@@ -20,17 +20,17 @@ type User = ID;
 /**
  * Represents the state of a single user in the database.
  * a set of `User`s with
- *   a `username` String (unique)
+ *   an `email` String (unique)
  *   a `passwordHash` String
  */
 interface UserDoc {
   _id: User;
-  username: string;
+  email: string;
   passwordHash: string;
 }
 
 /**
- * @concept UserAuthentication
+ * @concept UserAuthenticating
  * @purpose To securely verify a user's identity based on credentials.
  */
 export default class UserAuthenticationConcept {
@@ -38,34 +38,34 @@ export default class UserAuthenticationConcept {
 
   constructor(private readonly db: Db) {
     this.users = this.db.collection(PREFIX + "users");
-    // Ensure username is unique at the database level
-    this.users.createIndex({ username: 1 }, { unique: true });
+    // Ensure email is unique at the database level
+    this.users.createIndex({ email: 1 }, { unique: true });
   }
 
   /**
-   * register (username: String, password: String): (user: User) | (error: String)
+   * register (email: String, password: String): (user: User) | (error: String)
    *
-   * **requires**: no User exists with the given `username`.
-   * **effects**: creates a new User `u`; sets their `username` and a hash of their `password`; returns `u` as `user`.
+   * **requires**: no User exists with the given `email`.
+   * **effects**: creates a new User `u`; sets their `email` and a hash of their `password`; returns `u` as `user`.
    *
-   * **requires**: a User already exists with the given `username`.
+   * **requires**: a User already exists with the given `email`.
    * **effects**: returns an error message.
    */
   async register(
-    { username, password }: { username: string; password: string },
+    { email, password }: { email: string; password: string },
   ): Promise<{ user: User } | { error: string }> {
-    // Check if a user with this username already exists.
+    // Check if a user with this email already exists.
     // We also rely on the unique index in MongoDB, but this provides a cleaner error message.
     try {
-      const existingUser = await this.users.findOne({ username });
+      const existingUser = await this.users.findOne({ email });
       if (existingUser) {
-        return { error: "Username already exists" };
+        return { error: "Email already exists" };
       }
 
       const passwordHash = await hashPassword(password);
       const newUser: UserDoc = {
         _id: freshID(),
-        username,
+        email,
         passwordHash,
       };
 
@@ -74,7 +74,7 @@ export default class UserAuthenticationConcept {
     } catch (e: any) {
       // Catch potential duplicate key error from the database index
       if (e.code === 11000) {
-        return { error: "Username already exists" };
+        return { error: "Email already exists" };
       }
       // For other unexpected errors, re-throw or handle appropriately
       throw e;
@@ -82,42 +82,42 @@ export default class UserAuthenticationConcept {
   }
 
   /**
-   * login (username: String, password: String): (user: User) | (error: String)
+   * login (email: String, password: String): (user: User) | (error: String)
    *
-   * **requires**: a User exists with the given `username` and the `password` matches their `passwordHash`.
+   * **requires**: a User exists with the given `email` and the `password` matches their `passwordHash`.
    * **effects**: returns the matching User `u` as `user`.
    *
-   * **requires**: no User exists with the given `username` or the `password` does not match.
+   * **requires**: no User exists with the given `email` or the `password` does not match.
    * **effects**: returns an error message.
    */
   async login(
-    { username, password }: { username: string; password: string },
+    { email, password }: { email: string; password: string },
   ): Promise<{ user: User } | { error: string }> {
-    const user = await this.users.findOne({ username });
+    const user = await this.users.findOne({ email });
 
-    // To prevent timing attacks and username enumeration, use a generic error message.
+    // To prevent timing attacks and email enumeration, use a generic error message.
     if (!user) {
-      return { error: "Invalid username or password" };
+      return { error: "Invalid email or password" };
     }
 
     const providedPasswordHash = await hashPassword(password);
     if (user.passwordHash !== providedPasswordHash) {
-      return { error: "Invalid username or password" };
+      return { error: "Invalid email or password" };
     }
 
     return { user: user._id };
   }
 
   /**
-   * _getUserByUsername (username: String): (user: User)
+   * _getUserByEmail (email: String): (user: User)
    *
-   * **requires**: a User with the given `username` exists.
+   * **requires**: a User with the given `email` exists.
    * **effects**: returns the corresponding User.
    */
-  async _getUserByUsername(
-    { username }: { username: string },
+  async _getUserByEmail(
+    { email }: { email: string },
   ): Promise<{ user: User }[]> {
-    const user = await this.users.findOne({ username });
+    const user = await this.users.findOne({ email });
     if (user) {
       return [{ user: user._id }];
     }

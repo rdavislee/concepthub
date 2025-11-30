@@ -3,9 +3,9 @@ import { testDb } from "@utils/database.ts";
 import { ID } from "@utils/types.ts";
 import UserAuthenticationConcept from "./UserAuthenticatingConcept.ts";
 
-const usernameA = "alice";
+const emailA = "alice@example.com";
 const passwordA = "password123";
-const usernameB = "bob";
+const emailB = "bob@example.com";
 const passwordB = "securepass456";
 
 Deno.test("Principle: user registers then logs in with credentials", async () => {
@@ -14,16 +14,16 @@ Deno.test("Principle: user registers then logs in with credentials", async () =>
   try {
     console.log("Testing principle: register -> login flow");
 
-    // 1. User registers with username and password
-    console.log(`Registering user: ${usernameA}`);
+    // 1. User registers with email and password
+    console.log(`Registering user: ${emailA}`);
     const registerResult = await auth.register({
-      username: usernameA,
+      email: emailA,
       password: passwordA,
     });
     assertEquals(
       "error" in registerResult,
       false,
-      "Registration should succeed for new username",
+      "Registration should succeed for new email",
     );
     assertExists(
       "user" in registerResult ? registerResult.user : null,
@@ -33,9 +33,9 @@ Deno.test("Principle: user registers then logs in with credentials", async () =>
     console.log(`Registered user ID: ${userIdA}`);
 
     // 2. User can login with correct credentials
-    console.log(`Logging in user: ${usernameA}`);
+    console.log(`Logging in user: ${emailA}`);
     const loginResult = await auth.login({
-      username: usernameA,
+      email: emailA,
       password: passwordA,
     });
     assertEquals(
@@ -52,9 +52,9 @@ Deno.test("Principle: user registers then logs in with credentials", async () =>
     console.log(`Login successful, user ID: ${loggedInUser}`);
 
     // 3. Login fails with wrong password
-    console.log(`Attempting login with wrong password for: ${usernameA}`);
+    console.log(`Attempting login with wrong password for: ${emailA}`);
     const wrongPasswordResult = await auth.login({
-      username: usernameA,
+      email: emailA,
       password: "wrongpassword",
     });
     assertEquals(
@@ -65,30 +65,30 @@ Deno.test("Principle: user registers then logs in with credentials", async () =>
     if ("error" in wrongPasswordResult) {
       assertEquals(
         wrongPasswordResult.error,
-        "Invalid username or password",
+        "Invalid email or password",
         "Error message should be generic for security",
       );
       console.log(`Login correctly rejected with wrong password`);
     }
 
-    // 4. Login fails with non-existent username
-    console.log(`Attempting login with non-existent username`);
-    const wrongUsernameResult = await auth.login({
-      username: "nonexistent",
+    // 4. Login fails with non-existent email
+    console.log(`Attempting login with non-existent email`);
+    const wrongEmailResult = await auth.login({
+      email: "nonexistent@example.com",
       password: passwordA,
     });
     assertEquals(
-      "error" in wrongUsernameResult,
+      "error" in wrongEmailResult,
       true,
-      "Login should fail with non-existent username",
+      "Login should fail with non-existent email",
     );
-    if ("error" in wrongUsernameResult) {
+    if ("error" in wrongEmailResult) {
       assertEquals(
-        wrongUsernameResult.error,
-        "Invalid username or password",
+        wrongEmailResult.error,
+        "Invalid email or password",
         "Error message should be generic for security",
       );
-      console.log(`Login correctly rejected with non-existent username`);
+      console.log(`Login correctly rejected with non-existent email`);
     }
 
     console.log(
@@ -99,16 +99,16 @@ Deno.test("Principle: user registers then logs in with credentials", async () =>
   }
 });
 
-Deno.test("Action: register requires unique username", async () => {
+Deno.test("Action: register requires unique email", async () => {
   const [db, client] = await testDb();
   const auth = new UserAuthenticationConcept(db);
   try {
-    console.log("Testing register action: unique username requirement");
+    console.log("Testing register action: unique email requirement");
 
     // First registration should succeed
-    console.log(`Registering first user: ${usernameA}`);
+    console.log(`Registering first user: ${emailA}`);
     const firstRegister = await auth.register({
-      username: usernameA,
+      email: emailA,
       password: passwordA,
     });
     assertEquals(
@@ -119,33 +119,33 @@ Deno.test("Action: register requires unique username", async () => {
     console.log("First registration successful");
 
     // Duplicate registration should fail
-    console.log(`Attempting duplicate registration: ${usernameA}`);
+    console.log(`Attempting duplicate registration: ${emailA}`);
     const duplicateRegister = await auth.register({
-      username: usernameA,
+      email: emailA,
       password: "differentpassword",
     });
     assertEquals(
       "error" in duplicateRegister,
       true,
-      "Duplicate username registration should fail",
+      "Duplicate email registration should fail",
     );
     if ("error" in duplicateRegister) {
       assertEquals(
         duplicateRegister.error,
-        "Username already exists",
-        "Error message should indicate username conflict",
+        "Email already exists",
+        "Error message should indicate email conflict",
       );
       console.log("Duplicate registration correctly rejected");
     }
 
-    // Verify effect: only one user exists with this username
-    const userQuery = await auth._getUserByUsername({ username: usernameA });
+    // Verify effect: only one user exists with this email
+    const userQuery = await auth._getUserByEmail({ email: emailA });
     assertEquals(
       userQuery.length,
       1,
-      "Only one user should exist with the username",
+      "Only one user should exist with the email",
     );
-    console.log("Requirement verified: unique username enforced");
+    console.log("Requirement verified: unique email enforced");
   } finally {
     await client.close();
   }
@@ -158,9 +158,9 @@ Deno.test("Action: register effects - creates user with hashed password", async 
     console.log("Testing register action: effects verification");
 
     // Register a new user
-    console.log(`Registering user: ${usernameB}`);
+    console.log(`Registering user: ${emailB}`);
     const registerResult = await auth.register({
-      username: usernameB,
+      email: emailB,
       password: passwordB,
     });
     assertEquals(
@@ -171,8 +171,8 @@ Deno.test("Action: register effects - creates user with hashed password", async 
     const { user: userId } = registerResult as { user: ID };
     console.log(`Registered user ID: ${userId}`);
 
-    // Verify effect: user can be queried by username
-    const userQuery = await auth._getUserByUsername({ username: usernameB });
+    // Verify effect: user can be queried by email
+    const userQuery = await auth._getUserByEmail({ email: emailB });
     assertEquals(
       userQuery.length,
       1,
@@ -187,7 +187,7 @@ Deno.test("Action: register effects - creates user with hashed password", async 
 
     // Verify effect: password is hashed (user can login with original password)
     const loginResult = await auth.login({
-      username: usernameB,
+      email: emailB,
       password: passwordB,
     });
     assertEquals(
@@ -216,9 +216,9 @@ Deno.test("Action: login requires correct username and password", async () => {
     console.log("Testing login action: requirements verification");
 
     // Register a user first
-    console.log(`Registering user: ${usernameA}`);
+    console.log(`Registering user: ${emailA}`);
     const registerResult = await auth.register({
-      username: usernameA,
+      email: emailA,
       password: passwordA,
     });
     assertEquals(
@@ -232,7 +232,7 @@ Deno.test("Action: login requires correct username and password", async () => {
     // Test: login with correct credentials should succeed
     console.log(`Logging in with correct credentials`);
     const correctLogin = await auth.login({
-      username: usernameA,
+      email: emailA,
       password: passwordA,
     });
     assertEquals(
@@ -251,7 +251,7 @@ Deno.test("Action: login requires correct username and password", async () => {
     // Test: login with wrong password should fail
     console.log(`Attempting login with wrong password`);
     const wrongPasswordLogin = await auth.login({
-      username: usernameA,
+      email: emailA,
       password: "wrongpassword",
     });
     assertEquals(
@@ -262,30 +262,30 @@ Deno.test("Action: login requires correct username and password", async () => {
     if ("error" in wrongPasswordLogin) {
       assertEquals(
         wrongPasswordLogin.error,
-        "Invalid username or password",
+        "Invalid email or password",
         "Error message should be generic",
       );
       console.log("Requirement enforced: wrong password rejected");
     }
 
-    // Test: login with non-existent username should fail
-    console.log(`Attempting login with non-existent username`);
-    const wrongUsernameLogin = await auth.login({
-      username: "nonexistent",
+    // Test: login with non-existent email should fail
+    console.log(`Attempting login with non-existent email`);
+    const wrongEmailLogin = await auth.login({
+      email: "nonexistent@example.com",
       password: passwordA,
     });
     assertEquals(
-      "error" in wrongUsernameLogin,
+      "error" in wrongEmailLogin,
       true,
-      "Login with non-existent username should fail",
+      "Login with non-existent email should fail",
     );
-    if ("error" in wrongUsernameLogin) {
+    if ("error" in wrongEmailLogin) {
       assertEquals(
-        wrongUsernameLogin.error,
-        "Invalid username or password",
+        wrongEmailLogin.error,
+        "Invalid email or password",
         "Error message should be generic",
       );
-      console.log("Requirement enforced: non-existent username rejected");
+      console.log("Requirement enforced: non-existent email rejected");
     }
   } finally {
     await client.close();
@@ -299,9 +299,9 @@ Deno.test("Action: login effects - returns user ID on success", async () => {
     console.log("Testing login action: effects verification");
 
     // Register a user
-    console.log(`Registering user: ${usernameB}`);
+    console.log(`Registering user: ${emailB}`);
     const registerResult = await auth.register({
-      username: usernameB,
+      email: emailB,
       password: passwordB,
     });
     assertEquals(
@@ -313,9 +313,9 @@ Deno.test("Action: login effects - returns user ID on success", async () => {
     console.log(`Registered user ID: ${registeredUserId}`);
 
     // Login and verify effect: returns the correct user ID
-    console.log(`Logging in user: ${usernameB}`);
+    console.log(`Logging in user: ${emailB}`);
     const loginResult = await auth.login({
-      username: usernameB,
+      email: emailB,
       password: passwordB,
     });
     assertEquals(
@@ -335,16 +335,16 @@ Deno.test("Action: login effects - returns user ID on success", async () => {
   }
 });
 
-Deno.test("Query: _getUserByUsername returns user when exists", async () => {
+Deno.test("Query: _getUserByEmail returns user when exists", async () => {
   const [db, client] = await testDb();
   const auth = new UserAuthenticationConcept(db);
   try {
-    console.log("Testing query: _getUserByUsername");
+    console.log("Testing query: _getUserByEmail");
 
     // Register a user
-    console.log(`Registering user: ${usernameA}`);
+    console.log(`Registering user: ${emailA}`);
     const registerResult = await auth.register({
-      username: usernameA,
+      email: emailA,
       password: passwordA,
     });
     assertEquals(
@@ -356,8 +356,8 @@ Deno.test("Query: _getUserByUsername returns user when exists", async () => {
     console.log(`Registered user ID: ${userId}`);
 
     // Query for existing user
-    console.log(`Querying for user: ${usernameA}`);
-    const userQuery = await auth._getUserByUsername({ username: usernameA });
+    console.log(`Querying for user: ${emailA}`);
+    const userQuery = await auth._getUserByEmail({ email: emailA });
     assertEquals(
       userQuery.length,
       1,
@@ -372,8 +372,8 @@ Deno.test("Query: _getUserByUsername returns user when exists", async () => {
 
     // Query for non-existent user
     console.log(`Querying for non-existent user`);
-    const nonExistentQuery = await auth._getUserByUsername({
-      username: "nonexistent",
+    const nonExistentQuery = await auth._getUserByEmail({
+      email: "nonexistent@example.com",
     });
     assertEquals(
       nonExistentQuery.length,
