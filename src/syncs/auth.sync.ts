@@ -115,7 +115,7 @@ export const RefreshResponseError: Sync = ({ request, error }) => ({
 });
 
 //-- User Logout --//
-// Clients send accessToken in the request body
+// Clients send accessToken in the Authorization: Bearer header
 export const LogoutRequest: Sync = ({ request, accessToken, user }) => ({
   when: actions([Requesting.request, { path: "/auth/logout", accessToken }, {
     request,
@@ -138,8 +138,30 @@ export const LogoutResponse: Sync = ({ request }) => ({
   then: actions([Requesting.respond, { request, status: "logged_out" }]),
 });
 
+export const LogoutResponseError: Sync = ({ request, accessToken, error }) => ({
+  when: actions(
+    [Requesting.request, { path: "/auth/logout", accessToken }, { request }],
+  ),
+  where: async (frames) => {
+    // Map accessToken to session and check for errors
+    frames = await frames.query(UserSessioning._getUser, {
+      session: accessToken,
+    }, { error });
+    return frames.filter(($) => $[error] !== undefined);
+  },
+  then: actions([Requesting.respond, { request, error }]),
+});
+
+export const LogoutResponseDeleteError: Sync = ({ request, error }) => ({
+  when: actions(
+    [Requesting.request, { path: "/auth/logout" }, { request }],
+    [UserSessioning.delete, {}, { error }],
+  ),
+  then: actions([Requesting.respond, { request, error }]),
+});
+
 //-- Session Validation (frontend may poll /UserSessioning/_getUser) --//
-// Clients send accessToken in the request body
+// Clients send accessToken in the Authorization: Bearer header
 export const SessionValidationSuccess: Sync = (
   { request, accessToken, user },
 ) => ({

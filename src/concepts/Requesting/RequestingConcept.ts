@@ -266,10 +266,35 @@ export function startRequestingServer(
       // e.g., if base is /api and request is /api/users/create, path is /users/create
       const actionPath = c.req.path.substring(REQUESTING_BASE_URL.length);
 
-      // Combine the path from the URL with the JSON body to form the action's input.
+      // Extract Authorization header (Bearer token) if present
+      // Try both "Authorization" and "authorization" (HTTP headers are case-insensitive)
+      const authHeader = c.req.header("Authorization") || c.req.header("authorization");
+      let accessToken: string | undefined;
+      if (authHeader) {
+        const trimmedHeader = authHeader.trim();
+        if (trimmedHeader.toLowerCase().startsWith("bearer ")) {
+          accessToken = trimmedHeader.substring(7).trim(); // Remove "Bearer " prefix and trim
+        } else if (trimmedHeader.toLowerCase().startsWith("bearer")) {
+          // Handle case where there might be no space after "Bearer"
+          accessToken = trimmedHeader.substring(6).trim();
+        }
+      }
+      
+      // Check if this endpoint requires authentication
+      const requiresAuth = actionPath === "/auth/logout" || actionPath === "/auth/_getUser";
+      
+      if (requiresAuth && !accessToken) {
+        return c.json(
+          { error: "Authorization header with Bearer token is required" },
+          401,
+        );
+      }
+
+      // Combine the path from the URL with the JSON body and accessToken to form the action's input.
       const inputs = {
         ...body,
         path: actionPath,
+        ...(accessToken && { accessToken }),
       };
 
       console.log(`[Requesting] Received request for path: ${inputs.path}`);

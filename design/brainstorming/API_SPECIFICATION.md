@@ -882,11 +882,12 @@ Refreshes an access token using a valid refresh token. This invalidates the old 
 
 Logs out a user by revoking their session.
 
+**Headers:**
+- `Authorization: Bearer <accessToken>` (required)
+
 **Request Body:**
 ```json
-{
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
+{}
 ```
 
 **Response:**
@@ -896,7 +897,7 @@ Logs out a user by revoking their session.
 }
 ```
 
-**Note:** The session associated with the access token (and its corresponding refresh token) is revoked.
+**Note:** The session associated with the access token (and its corresponding refresh token) is revoked. The access token must be provided in the `Authorization` header with the `Bearer` prefix.
 
 ---
 
@@ -904,11 +905,12 @@ Logs out a user by revoking their session.
 
 Validates an access token and returns the associated user.
 
+**Headers:**
+- `Authorization: Bearer <accessToken>` (required)
+
 **Request Body:**
 ```json
-{
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-}
+{}
 ```
 
 **Response:**
@@ -925,7 +927,7 @@ Validates an access token and returns the associated user.
 - `{ "error": "Session not found or revoked" }` (401)
 - `{ "error": "Invalid access token" }` (401)
 
-**Note:** This endpoint can be used by the frontend to validate sessions and check if a user is still logged in.
+**Note:** This endpoint can be used by the frontend to validate sessions and check if a user is still logged in. The access token must be provided in the `Authorization` header with the `Bearer` prefix.
 
 ---
 
