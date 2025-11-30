@@ -788,66 +788,159 @@ Searches for concepts by display name (case-insensitive subsequence match).
 
 ---
 
+### Authentication
+
+Handles user registration, authentication, session management, and token refresh. All authentication endpoints are routed through the Requesting concept and use JWT-based sessions.
+
+#### `POST /api/auth/register`
+
+Registers a new user and automatically creates a session.
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword123"
+}
+```
+
+**Response:**
+```json
+{
+  "user": "user123",
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Error Responses:**
+- `{ "error": "Email already exists" }` (409)
+
+**Note:** The access token expires in 15 minutes, and the refresh token expires in 7 days.
+
+---
+
+#### `POST /api/auth/login`
+
+Authenticates a user and creates a new session.
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword123"
+}
+```
+
+**Response:**
+```json
+{
+  "user": "user123",
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Error Responses:**
+- `{ "error": "Invalid email or password" }` (401)
+
+**Note:** The access token expires in 15 minutes, and the refresh token expires in 7 days.
+
+---
+
+#### `POST /api/auth/refresh`
+
+Refreshes an access token using a valid refresh token. This invalidates the old token pair and issues a new one.
+
+**Request Body:**
+```json
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response:**
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Error Responses:**
+- `{ "error": "Refresh token expired" }` (401)
+- `{ "error": "Invalid token signature" }` (401)
+- `{ "error": "Invalid token type" }` (401)
+- `{ "error": "Refresh token not found or revoked" }` (401)
+- `{ "error": "Invalid refresh token" }` (401)
+
+**Note:** The old refresh token is revoked when a new token pair is issued.
+
+---
+
+#### `POST /api/auth/logout`
+
+Logs out a user by revoking their session.
+
+**Request Body:**
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response:**
+```json
+{
+  "status": "logged_out"
+}
+```
+
+**Note:** The session associated with the access token (and its corresponding refresh token) is revoked.
+
+---
+
+#### `POST /api/auth/_getUser`
+
+Validates an access token and returns the associated user.
+
+**Request Body:**
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Response:**
+```json
+{
+  "user": "user123"
+}
+```
+
+**Error Responses:**
+- `{ "error": "Access token expired" }` (401)
+- `{ "error": "Invalid token signature" }` (401)
+- `{ "error": "Invalid token type" }` (401)
+- `{ "error": "Session not found or revoked" }` (401)
+- `{ "error": "Invalid access token" }` (401)
+
+**Note:** This endpoint can be used by the frontend to validate sessions and check if a user is still logged in.
+
+---
+
 ### UserAuthenticating
 
-Handles user registration and authentication.
+**Note:** The direct concept endpoints (`/api/UserAuthenticating/register`, `/api/UserAuthenticating/login`) are excluded from passthrough routes. Use the `/api/auth/*` endpoints instead.
 
-#### `POST /api/UserAuthenticating/register`
+#### `POST /api/UserAuthenticating/_getUserByEmail`
 
-Registers a new user.
-
-**Request Body:**
-```json
-{
-  "username": "johndoe",
-  "password": "securepassword123"
-}
-```
-
-**Response:**
-```json
-{
-  "user": "user123"
-}
-```
-
-**Error Responses:**
-- `{ "error": "Username already exists" }` (409)
-
----
-
-#### `POST /api/UserAuthenticating/login`
-
-Authenticates a user and returns their user ID.
+Query: Retrieves a user by email (passthrough route, if included).
 
 **Request Body:**
 ```json
 {
-  "username": "johndoe",
-  "password": "securepassword123"
-}
-```
-
-**Response:**
-```json
-{
-  "user": "user123"
-}
-```
-
-**Error Responses:**
-- `{ "error": "Invalid username or password" }` (401)
-
----
-
-#### `POST /api/UserAuthenticating/_getUserByUsername`
-
-Query: Retrieves a user by username.
-
-**Request Body:**
-```json
-{
-  "username": "johndoe"
+  "email": "user@example.com"
 }
 ```
 
@@ -860,77 +953,19 @@ Query: Retrieves a user by username.
 ]
 ```
 
-**Note:** Returns empty array if user not found.
+**Note:** Returns empty array if user not found. This is a query endpoint that may be available as a passthrough route.
 
 ---
 
 ### UserSessioning
 
-Manages user sessions for maintaining logged-in state.
+**Note:** The direct concept endpoints (`/api/UserSessioning/create`, `/api/UserSessioning/delete`, `/api/UserSessioning/_getUser`) are excluded from passthrough routes. Use the `/api/auth/*` endpoints instead for session management.
 
-#### `POST /api/UserSessioning/create`
-
-Creates a new session for a user.
-
-**Request Body:**
-```json
-{
-  "user": "user123"
-}
-```
-
-**Response:**
-```json
-{
-  "session": "session456"
-}
-```
-
----
-
-#### `POST /api/UserSessioning/delete`
-
-Deletes a session.
-
-**Request Body:**
-```json
-{
-  "session": "session456"
-}
-```
-
-**Response:**
-```json
-{}
-```
-
-**Error Responses:**
-- `{ "error": "Session with id {session} not found" }` (404)
-
----
-
-#### `POST /api/UserSessioning/_getUser`
-
-Query: Retrieves the user associated with a session.
-
-**Request Body:**
-```json
-{
-  "session": "session456"
-}
-```
-
-**Response:**
-```json
-[
-  {
-    "user": "user123"
-  }
-]
-```
-
-**Error Responses:**
-- `[{ "error": "Session with id {session} not found" }]` (404)
+**Internal Concept Actions:**
+- `create`: Creates a new session (called internally by auth endpoints)
+- `delete`: Deletes/revokes a session (called internally by logout)
+- `refresh`: Refreshes tokens (called internally by auth refresh endpoint)
+- `_getUser`: Validates a session and returns the user (called internally by auth validation)
 
 ---
 

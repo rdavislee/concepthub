@@ -26,19 +26,6 @@
 
 export const inclusions: Record<string, string> = {
   // Feel free to delete these example inclusions
-  "/api/UserAuthenticating/login": "login is public",
-  "/api/UserAuthenticating/register": "register is public",
-  "/api/ConceptRegistering/reserveName":
-    "public API for reserving concept names",
-  "/api/ConceptRegistering/publishVersion":
-    "public API for publishing concept versions",
-  "/api/ConceptRegistering/deprecate": "public API for deprecating versions",
-  "/api/ConceptRegistering/yank": "public API for yanking versions",
-  "/api/ConceptRegistering/_latestPublished":
-    "public query for finding latest published version",
-  "/api/ConceptRegistering/_findByName":
-    "public query for searching concepts by name",
-  "/api/ConceptRegistering/_getAll": "public query for getting all concepts",
 };
 
 /**
@@ -52,7 +39,6 @@ export const inclusions: Record<string, string> = {
  */
 
 export const exclusions: Array<string> = [
-  // Feel free to delete these example exclusions
-  "/api/LikertSurvey/createSurvey",
-  "/api/LikertSurvey/addQuestion",
+  "/api/UserAuthenticating/login",
+  "/api/UserAuthenticating/register",
 ];
