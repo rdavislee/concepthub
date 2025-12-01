@@ -17,6 +17,7 @@ Deno.test("Principle: A user sets profile fields; others read them for display; 
     console.log("Step 1: User A sets all profile fields");
     const setProfileResult = await profileConcept.setProfile({
       user: userA,
+      username: "alice_smith",
       displayName: "Alice Smith",
       avatarUrl: "https://example.com/avatar.jpg",
       bio: "Software engineer and cat lover",
@@ -32,6 +33,11 @@ Deno.test("Principle: A user sets profile fields; others read them for display; 
     console.log("Step 2: User B reads User A's profile");
     const profile = await profileConcept._profileOf({ user: userA });
     assertEquals(profile.length, 1, "Query should return one profile");
+    assertEquals(
+      profile[0].username,
+      "alice_smith",
+      "Username should be set correctly",
+    );
     assertEquals(
       profile[0].displayName,
       "Alice Smith",
@@ -62,6 +68,11 @@ Deno.test("Principle: A user sets profile fields; others read them for display; 
 
     // Verify that only displayName changed, other fields remain unchanged
     const updatedProfile = await profileConcept._profileOf({ user: userA });
+    assertEquals(
+      updatedProfile[0].username,
+      "alice_smith",
+      "Username should remain unchanged",
+    );
     assertEquals(
       updatedProfile[0].displayName,
       "Alice J. Smith",
@@ -107,6 +118,7 @@ Deno.test("Action: setProfile requires user exists and effects set only provided
     console.log("Testing effects: all fields can be set");
     const result = await profileConcept.setProfile({
       user: userA,
+      username: "testuser",
       displayName: "Test Display Name",
       avatarUrl: "https://example.com/avatar.jpg",
       bio: "Test bio",
@@ -120,6 +132,11 @@ Deno.test("Action: setProfile requires user exists and effects set only provided
 
     // Verify the effect using the query
     let profile = await profileConcept._profileOf({ user: userA });
+    assertEquals(
+      profile[0].username,
+      "testuser",
+      "Username should be set to the provided value",
+    );
     assertEquals(
       profile[0].displayName,
       "Test Display Name",
@@ -144,9 +161,42 @@ Deno.test("Action: setProfile requires user exists and effects set only provided
     });
     profile = await profileConcept._profileOf({ user: userA });
     assertEquals(
+      profile[0].username,
+      "testuser",
+      "Username should remain unchanged",
+    );
+    assertEquals(
       profile[0].displayName,
       "Updated Name",
       "Display name should be updated",
+    );
+    assertEquals(
+      profile[0].avatarUrl,
+      "https://example.com/avatar.jpg",
+      "Avatar URL should remain unchanged",
+    );
+    assertEquals(
+      profile[0].bio,
+      "Test bio",
+      "Bio should remain unchanged",
+    );
+
+    // Test updating only username
+    console.log("Testing update: only username can be changed");
+    await profileConcept.setProfile({
+      user: userA,
+      username: "newusername",
+    });
+    profile = await profileConcept._profileOf({ user: userA });
+    assertEquals(
+      profile[0].username,
+      "newusername",
+      "Username should be updated",
+    );
+    assertEquals(
+      profile[0].displayName,
+      "Updated Name",
+      "Display name should remain unchanged",
     );
     assertEquals(
       profile[0].avatarUrl,
@@ -166,6 +216,11 @@ Deno.test("Action: setProfile requires user exists and effects set only provided
       avatarUrl: "https://example.com/new-avatar.png",
     });
     profile = await profileConcept._profileOf({ user: userA });
+    assertEquals(
+      profile[0].username,
+      "newusername",
+      "Username should remain unchanged",
+    );
     assertEquals(
       profile[0].displayName,
       "Updated Name",
@@ -189,6 +244,11 @@ Deno.test("Action: setProfile requires user exists and effects set only provided
       bio: "Updated bio text",
     });
     profile = await profileConcept._profileOf({ user: userA });
+    assertEquals(
+      profile[0].username,
+      "newusername",
+      "Username should remain unchanged",
+    );
     assertEquals(
       profile[0].displayName,
       "Updated Name",
@@ -223,6 +283,11 @@ Deno.test("Query: _profileOf returns profile information or empty strings if pro
     const emptyProfile = await profileConcept._profileOf({ user: userB });
     assertEquals(emptyProfile.length, 1, "Query should return one result");
     assertEquals(
+      emptyProfile[0].username,
+      "",
+      "Username should be empty string for non-existent profile",
+    );
+    assertEquals(
       emptyProfile[0].displayName,
       "",
       "Display name should be empty string for non-existent profile",
@@ -241,6 +306,7 @@ Deno.test("Query: _profileOf returns profile information or empty strings if pro
     // Set some profile fields
     await profileConcept.setProfile({
       user: userB,
+      username: "bob_johnson",
       displayName: "Bob Johnson",
       avatarUrl: "https://example.com/bob.jpg",
       bio: "Bob's bio",
@@ -250,6 +316,11 @@ Deno.test("Query: _profileOf returns profile information or empty strings if pro
     console.log("Testing: existing profile returns correct values");
     const profile = await profileConcept._profileOf({ user: userB });
     assertEquals(profile.length, 1, "Query should return one result");
+    assertEquals(
+      profile[0].username,
+      "bob_johnson",
+      "Username should match",
+    );
     assertEquals(
       profile[0].displayName,
       "Bob Johnson",
@@ -268,10 +339,16 @@ Deno.test("Query: _profileOf returns profile information or empty strings if pro
     const userC = "user:Charlie" as ID;
     await profileConcept.setProfile({
       user: userC,
+      username: "charlie",
       displayName: "Bob",
       // avatarUrl and bio are omitted - they remain unset
     });
     const partialProfile = await profileConcept._profileOf({ user: userC });
+    assertEquals(
+      partialProfile[0].username,
+      "charlie",
+      "Set username should return value",
+    );
     assertEquals(
       partialProfile[0].displayName,
       "Bob",
@@ -304,10 +381,23 @@ Deno.test("Independent field updates: editing one field does not affect others",
     // Set all fields initially
     await profileConcept.setProfile({
       user: userA,
+      username: "initial_user",
       displayName: "Initial Name",
       avatarUrl: "https://example.com/initial.jpg",
       bio: "Initial bio",
     });
+
+    // Update only username
+    console.log("Updating only username");
+    await profileConcept.setProfile({
+      user: userA,
+      username: "updated_user",
+    });
+    let profile = await profileConcept._profileOf({ user: userA });
+    assertEquals(profile[0].username, "updated_user");
+    assertEquals(profile[0].displayName, "Initial Name");
+    assertEquals(profile[0].avatarUrl, "https://example.com/initial.jpg");
+    assertEquals(profile[0].bio, "Initial bio");
 
     // Update only displayName
     console.log("Updating only displayName");
@@ -315,7 +405,8 @@ Deno.test("Independent field updates: editing one field does not affect others",
       user: userA,
       displayName: "Updated Name",
     });
-    let profile = await profileConcept._profileOf({ user: userA });
+    profile = await profileConcept._profileOf({ user: userA });
+    assertEquals(profile[0].username, "updated_user");
     assertEquals(profile[0].displayName, "Updated Name");
     assertEquals(profile[0].avatarUrl, "https://example.com/initial.jpg");
     assertEquals(profile[0].bio, "Initial bio");
@@ -327,6 +418,7 @@ Deno.test("Independent field updates: editing one field does not affect others",
       avatarUrl: "https://example.com/new.jpg",
     });
     profile = await profileConcept._profileOf({ user: userA });
+    assertEquals(profile[0].username, "updated_user");
     assertEquals(profile[0].displayName, "Updated Name");
     assertEquals(profile[0].avatarUrl, "https://example.com/new.jpg");
     assertEquals(profile[0].bio, "Initial bio");
@@ -338,6 +430,7 @@ Deno.test("Independent field updates: editing one field does not affect others",
       bio: "Updated bio",
     });
     profile = await profileConcept._profileOf({ user: userA });
+    assertEquals(profile[0].username, "updated_user");
     assertEquals(profile[0].displayName, "Updated Name");
     assertEquals(profile[0].avatarUrl, "https://example.com/new.jpg");
     assertEquals(profile[0].bio, "Updated bio");

@@ -2,11 +2,19 @@ import { actions, Sync } from "@engine";
 import { Requesting, UserAuthenticating, UserSessioning } from "@concepts";
 
 //-- User Registration --//
-export const RegisterRequest: Sync = ({ request, email, password }) => ({
+export const RegisterRequest: Sync = ({
+  request,
+  email,
+  password,
+  name,
+  username,
+}) => ({
   when: actions([Requesting.request, {
     path: "/auth/register",
     email,
     password,
+    name,
+    username,
   }, { request }]),
   then: actions([UserAuthenticating.register, { email, password }]),
 });

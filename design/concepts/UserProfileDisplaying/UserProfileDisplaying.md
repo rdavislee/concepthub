@@ -12,6 +12,7 @@ A user sets profile fields; others read them for display; edits update fields wi
 a set of Users
 a set of Profiles with
   a user Users
+  an optional username String
   an optional displayName String
   an optional avatarUrl String
   an optional bio String
@@ -19,13 +20,13 @@ a set of Profiles with
 
 **actions**
 
-* **setProfile (user: Users, displayName: String, avatarUrl: String, bio: String) : (ok: Flag)**
+* **setProfile (user: Users, username: String, displayName: String, avatarUrl: String, bio: String) : (ok: Flag)**
   requires: user exists
   effects: set only the provided fields, leaving others unchanged
 
 **queries**
 
-* **_profileOf(user: Users) : (displayName: String, avatarUrl: String, bio: String)**
+* **_profileOf(user: Users) : (username: String, displayName: String, avatarUrl: String, bio: String)**
   requires: user exists
   effects: returns the profile fields for the user
 

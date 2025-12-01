@@ -10,6 +10,7 @@ type User = ID;
 /**
  * State: A set of Profiles with
  *   a user Users
+ *   an optional username String
  *   an optional displayName String
  *   an optional avatarUrl String
  *   an optional bio String
@@ -17,6 +18,7 @@ type User = ID;
 interface ProfileDoc {
   _id: User; // Use user ID as the document ID for easy lookup
   user: User; // Reference to the user (matches spec: "a set of Profiles with a user Users")
+  username?: string;
   displayName?: string;
   avatarUrl?: string;
   bio?: string;
@@ -35,18 +37,20 @@ export default class UserProfileDisplayingConcept {
   }
 
   /**
-   * Action: setProfile (user: Users, displayName: String, avatarUrl: String, bio: String) : (ok: Flag)
+   * Action: setProfile (user: Users, username: String, displayName: String, avatarUrl: String, bio: String) : (ok: Flag)
    * requires: user exists
    * effects: set only the provided fields, leaving others unchanged
    */
   async setProfile(
     {
       user,
+      username,
       displayName,
       avatarUrl,
       bio,
     }: {
       user: User;
+      username?: string;
       displayName?: string;
       avatarUrl?: string;
       bio?: string;
@@ -58,6 +62,9 @@ export default class UserProfileDisplayingConcept {
 
     // Build update object with only provided fields
     const updateFields: Partial<ProfileDoc> = { user };
+    if (username !== undefined) {
+      updateFields.username = username.trim() || undefined;
+    }
     if (displayName !== undefined) {
       updateFields.displayName = displayName.trim() || undefined;
     }
@@ -78,21 +85,22 @@ export default class UserProfileDisplayingConcept {
   }
 
   /**
-   * Query: _profileOf(user: Users) : (displayName: String, avatarUrl: String, bio: String)
+   * Query: _profileOf(user: Users) : (username: String, displayName: String, avatarUrl: String, bio: String)
    * requires: user exists
    * effects: returns the profile fields for the user
    */
   async _profileOf(
     { user }: { user: User },
-  ): Promise<Array<{ displayName: string; avatarUrl: string; bio: string }>> {
+  ): Promise<Array<{ username: string; displayName: string; avatarUrl: string; bio: string }>> {
     const profile = await this.profiles.findOne({ _id: user });
 
     if (!profile) {
       // Return empty strings for all fields if profile doesn't exist
-      return [{ displayName: "", avatarUrl: "", bio: "" }];
+      return [{ username: "", displayName: "", avatarUrl: "", bio: "" }];
     }
 
     return [{
+      username: profile.username || "",
       displayName: profile.displayName || "",
       avatarUrl: profile.avatarUrl || "",
       bio: profile.bio || "",
