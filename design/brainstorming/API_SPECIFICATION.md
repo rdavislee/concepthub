@@ -215,90 +215,24 @@ Query: Returns recent downloads for a user.
 
 ### UserProfileDisplaying
 
-Manages user profile information (display name, avatar, bio).
+Manages user profile information (username, display name, avatar, bio).
 
-#### `POST /api/UserProfileDisplaying/setDisplayName`
+#### `POST /api/UserProfileDisplaying/setProfile`
 
-Sets or updates a user's display name.
-
-**Request Body:**
-```json
-{
-  "user": "user123",
-  "name": "John Doe"
-}
-```
-
-**Response:**
-```json
-{
-  "ok": true
-}
-```
-
-**Error Responses:**
-- `{ "error": "User ID is required" }` (400)
-
----
-
-#### `POST /api/UserProfileDisplaying/setAvatar`
-
-Sets or updates a user's avatar URL.
+Sets or updates profile fields for a user. Only provided fields are updated; others remain unchanged.
 
 **Request Body:**
 ```json
 {
   "user": "user123",
-  "url": "https://example.com/avatar.jpg"
-}
-```
-
-**Response:**
-```json
-{
-  "ok": true
-}
-```
-
-**Error Responses:**
-- `{ "error": "User ID is required" }` (400)
-
----
-
-#### `POST /api/UserProfileDisplaying/setBio`
-
-Sets or updates a user's bio.
-
-**Request Body:**
-```json
-{
-  "user": "user123",
+  "username": "johndoe",
+  "displayName": "John Doe",
+  "avatarUrl": "https://example.com/avatar.jpg",
   "bio": "Software developer and concept enthusiast"
 }
 ```
 
-**Response:**
-```json
-{
-  "ok": true
-}
-```
-
-**Error Responses:**
-- `{ "error": "User ID is required" }` (400)
-
----
-
-#### `POST /api/UserProfileDisplaying/clearProfile`
-
-Clears all profile fields for a user.
-
-**Request Body:**
-```json
-{
-  "user": "user123"
-}
-```
+**Note:** All fields (`username`, `displayName`, `avatarUrl`, `bio`) are optional. You can provide any combination of these fields to update only the desired fields.
 
 **Response:**
 ```json
@@ -327,6 +261,7 @@ Query: Retrieves profile information for a user.
 ```json
 [
   {
+    "username": "johndoe",
     "displayName": "John Doe",
     "avatarUrl": "https://example.com/avatar.jpg",
     "bio": "Software developer and concept enthusiast"
@@ -335,6 +270,32 @@ Query: Retrieves profile information for a user.
 ```
 
 **Note:** If no profile exists, returns empty strings for all fields.
+
+---
+
+#### `POST /api/UserProfileDisplaying/_userByUsername`
+
+Query: Retrieves a user ID by username.
+
+**Request Body:**
+```json
+{
+  "username": "johndoe"
+}
+```
+
+**Response:**
+```json
+[
+  {
+    "user": "user123"
+  }
+]
+```
+
+**Error Responses:**
+- `{ "error": "Username is required" }` (400) - when username is empty or missing
+- `{ "error": "Username not found" }` (404) - when no user has the given username
 
 ---
 
