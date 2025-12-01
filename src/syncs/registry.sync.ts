@@ -167,6 +167,7 @@ export const PublishResponseErrorAuth: Sync = ({
 
 //-- Registry All Request --//
 // Returns all registered concepts
+// This endpoint is public and does not require authentication (no accessToken needed)
 export const RegistryAllRequest: Sync = ({
   request,
   concept,
