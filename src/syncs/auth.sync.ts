@@ -1,13 +1,44 @@
 import { actions, Sync } from "@engine";
-import { Requesting, UserAuthenticating, UserSessioning } from "@concepts";
+import {
+  Requesting,
+  UserAuthenticating,
+  UserProfileDisplaying,
+  UserSessioning,
+} from "@concepts";
 
 //-- User Registration --//
+// Check if username already exists and return error if it does
+export const RegisterUsernameExistsError: Sync = ({
+  request,
+  username,
+  user,
+}) => ({
+  when: actions([Requesting.request, {
+    path: "/auth/register",
+    username,
+  }, { request }]),
+  where: async (frames) => {
+    // Check if username already exists
+    frames = await frames.query(UserProfileDisplaying._userByUsername, {
+      username,
+    }, { user });
+    // Only proceed if username exists (user is found)
+    return frames.filter(($) => $[user] !== undefined);
+  },
+  then: actions([
+    Requesting.respond,
+    { request, error: "Username already exists", statusCode: 409 },
+  ]),
+});
+
+// Proceed with registration only if username doesn't exist
 export const RegisterRequest: Sync = ({
   request,
   email,
   password,
   name,
   username,
+  error,
 }) => ({
   when: actions([Requesting.request, {
     path: "/auth/register",
@@ -16,6 +47,14 @@ export const RegisterRequest: Sync = ({
     name,
     username,
   }, { request }]),
+  where: async (frames) => {
+    // Check if username already exists
+    frames = await frames.query(UserProfileDisplaying._userByUsername, {
+      username,
+    }, { error });
+    // Only proceed if username does NOT exist (query returned error)
+    return frames.filter(($) => $[error] !== undefined);
+  },
   then: actions([UserAuthenticating.register, { email, password }]),
 });
 

@@ -91,7 +91,11 @@ export default class UserProfileDisplayingConcept {
    */
   async _profileOf(
     { user }: { user: User },
-  ): Promise<Array<{ username: string; displayName: string; avatarUrl: string; bio: string }>> {
+  ): Promise<
+    Array<
+      { username: string; displayName: string; avatarUrl: string; bio: string }
+    >
+  > {
     const profile = await this.profiles.findOne({ _id: user });
 
     if (!profile) {
@@ -105,5 +109,26 @@ export default class UserProfileDisplayingConcept {
       avatarUrl: profile.avatarUrl || "",
       bio: profile.bio || "",
     }];
+  }
+
+  /**
+   * Query: _userByUsername(username: String) : (user: User) | (error: String)
+   * requires: true
+   * effects: returns the user associated with the given username if it exists, otherwise returns an error
+   */
+  async _userByUsername(
+    { username }: { username: string },
+  ): Promise<Array<{ user: User }> | [{ error: string }]> {
+    if (!username || !username.trim()) {
+      return [{ error: "Username is required" }];
+    }
+
+    const profile = await this.profiles.findOne({ username: username.trim() });
+
+    if (!profile) {
+      return [{ error: "Username not found" }];
+    }
+
+    return [{ user: profile.user }];
   }
 }
