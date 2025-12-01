@@ -347,4 +347,51 @@ export default class ConceptVersioningConcept {
     }
     return [{ author: conceptDoc.author }];
   }
+
+  /**
+   * _downloadLatest (concept: Concepts) : (files: Map<String, File>, version: Number, created_at: DateTime)
+   *
+   * **requires** at least one version exists for concept
+   * **effects** retrieves latest version metadata then downloads all files in that version folder and returns them
+   */
+  async _downloadLatest(
+    { concept }: { concept: Concept },
+  ): Promise<
+    Array<{
+      files: Map<string, Uint8Array>;
+      version: number;
+      created_at: Date;
+    }>
+  > {
+    // Get latest version record
+    const versions = await this.versions
+      .find({ concept })
+      .sort({ version: -1, created_at: -1 })
+      .limit(1)
+      .toArray();
+
+    if (versions.length === 0) {
+      return [];
+    }
+    const versionDoc = versions[0];
+
+    // Need userId to reconstruct path; get concept doc
+    const conceptDoc = await this.concepts.findOne({ _id: concept });
+    if (!conceptDoc) {
+      return [];
+    }
+    const userId = conceptDoc.author;
+    const basePath = `concepts/${userId}/${concept}/v${versionDoc.version}`;
+
+    try {
+      const files = await downloadFiles(basePath);
+      return [{
+        files,
+        version: versionDoc.version,
+        created_at: versionDoc.created_at,
+      }];
+    } catch {
+      return [];
+    }
+  }
 }

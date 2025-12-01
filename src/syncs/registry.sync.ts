@@ -226,3 +226,60 @@ export const RegistryAllRequest: Sync = ({
   },
   then: actions([Requesting.respond, { request, results }]),
 });
+
+//-- Registry Files Request --//
+// Returns the latest version's files for a concept identified by unique_name
+// Response shape: { files: Record<string, string> } where values are base64-encoded contents
+export const RegistryFilesRequest: Sync = ({
+  request,
+  unique_name,
+  concept,
+  version,
+  files,
+  files_json,
+}) => ({
+  when: actions([
+    Requesting.request,
+    { path: "/registry/files", unique_name },
+    { request },
+  ]),
+  where: async (frames) => {
+    const originalFrame = frames[0];
+    // Get all concepts and match by unique_name to find concept id
+    let conceptFrames = await frames.query(ConceptRegistering._getAll, {}, {
+      concept,
+      unique_name,
+    });
+    conceptFrames = conceptFrames.filter(($) =>
+      $[unique_name] === originalFrame[unique_name]
+    );
+    if (conceptFrames.length === 0) {
+      return new Frames({ ...originalFrame, [files_json]: {} });
+    }
+    const conceptId = conceptFrames[0][concept];
+
+    // Download latest version files via new _downloadLatest query
+    frames = await frames.query(ConceptVersioning._downloadLatest, {
+      concept: conceptId,
+    }, { files, version });
+    if (frames.length === 0) {
+      return new Frames({ ...originalFrame, [files_json]: {} });
+    }
+
+    // Decode Uint8Array files to UTF-8 strings
+    const f = frames[0][files] as Map<string, Uint8Array> | undefined;
+    const textFiles: Record<string, string> = {};
+    if (f instanceof Map) {
+      for (const [path, content] of f.entries()) {
+        try {
+          textFiles[path] = new TextDecoder("utf-8").decode(content);
+        } catch {
+          // Fallback to base64 if decoding fails
+          textFiles[path] = btoa(String.fromCharCode(...content));
+        }
+      }
+    }
+    return new Frames({ ...originalFrame, [files_json]: textFiles });
+  },
+  then: actions([Requesting.respond, { request, files: files_json }]),
+});
