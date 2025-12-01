@@ -3,6 +3,7 @@ import {
   ConceptRegistering,
   ConceptVersioning,
   Requesting,
+  UserProfileDisplaying,
   UserSessioning,
 } from "@concepts";
 
@@ -173,6 +174,7 @@ export const RegistryAllRequest: Sync = ({
   concept,
   unique_name,
   author,
+  author_username,
   created_at,
   updated_at,
   results,
@@ -200,9 +202,14 @@ export const RegistryAllRequest: Sync = ({
       return new Frames({ ...originalFrame, [results]: [] });
     }
 
-    // Collect all concepts into results array
+    // Query profiles for all authors to get usernames
+    frames = await frames.query(UserProfileDisplaying._profileOf, {
+      user: author,
+    }, { username: author_username });
+
+    // Collect all concepts into results array, including author_username
     return frames.collectAs(
-      [concept, unique_name, author, created_at, updated_at],
+      [concept, unique_name, author, author_username, created_at, updated_at],
       results,
     );
   },

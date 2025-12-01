@@ -396,6 +396,7 @@ Retrieves all registered concepts from the registry. This endpoint returns a lis
       "concept": "concept123",
       "unique_name": "MyNewConcept",
       "author": "user456",
+      "author_username": "johndoe",
       "created_at": "2024-01-15T10:30:00.000Z",
       "updated_at": "2024-01-15T10:30:00.000Z"
     },
@@ -403,6 +404,7 @@ Retrieves all registered concepts from the registry. This endpoint returns a lis
       "concept": "concept789",
       "unique_name": "AnotherConcept",
       "author": "user123",
+      "author_username": "janedoe",
       "created_at": "2024-01-14T08:20:00.000Z",
       "updated_at": "2024-01-14T08:20:00.000Z"
     }
@@ -416,6 +418,7 @@ Retrieves all registered concepts from the registry. This endpoint returns a lis
   - `concept` (string): The unique concept ID
   - `unique_name` (string): The unique name of the concept
   - `author` (string): The user ID of the concept author
+  - `author_username` (string): The username of the concept author (empty string if no username is set)
   - `created_at` (string): ISO 8601 timestamp of when the concept was created
   - `updated_at` (string): ISO 8601 timestamp of when the concept was last updated
 
