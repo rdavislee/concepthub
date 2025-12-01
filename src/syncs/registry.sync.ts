@@ -202,16 +202,27 @@ export const RegistryAllRequest: Sync = ({
       return new Frames({ ...originalFrame, [results]: [] });
     }
 
+    // Filter out frames missing author before querying profiles
+    frames = frames.filter(($) => $[author] !== undefined);
+
+    // If all were filtered out, respond with empty results while preserving request binding
+    if (frames.length === 0) {
+      return new Frames({ ...originalFrame, [results]: [] });
+    }
+
     // Query profiles for all authors to get usernames
     frames = await frames.query(UserProfileDisplaying._profileOf, {
       user: author,
     }, { username: author_username });
 
     // Collect all concepts into results array, including author_username
-    return frames.collectAs(
+    const collected = frames.collectAs(
       [concept, unique_name, author, author_username, created_at, updated_at],
       results,
     );
+
+    // Ensure request binding is preserved on collected frame(s)
+    return collected.map(($) => ({ ...$, [request]: originalFrame[request] }));
   },
   then: actions([Requesting.respond, { request, results }]),
 });
