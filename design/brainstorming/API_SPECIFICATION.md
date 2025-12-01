@@ -338,375 +338,132 @@ Query: Retrieves profile information for a user.
 
 ---
 
-### ConceptRegistering
+### Concept Management
 
-Manages concept registration, versioning, and publishing.
+High-level endpoints for managing concepts and their versions.
 
-#### `POST /api/ConceptRegistering/reserveName`
+#### `POST /api/registry/publish`
 
-Reserves a unique name for a concept.
+Creates a new concept with a unique name and publishes its first version (version 1). This endpoint combines concept registration and version upload into a single operation. Requires authentication.
 
-**Request Body:**
-```json
-{
-  "uniqueName": "MyAwesomeConcept",
-  "owner": "author123"
-}
-```
-
-**Response:**
-```json
-{
-  "concept": "concept456"
-}
-```
-
-**Error Responses:**
-- `{ "error": "uniqueName is required" }` (400)
-- `{ "error": "owner is required" }` (400)
-- `{ "error": "A concept with this uniqueName already exists" }` (409)
-
----
-
-#### `POST /api/ConceptRegistering/publishVersion`
-
-Publishes a new version of a concept.
+**Headers:**
+- `Authorization: Bearer <accessToken>` (required)
+- `Content-Type: application/json`
 
 **Request Body:**
 ```json
 {
-  "concept": "concept456",
-  "semver": "1.0.0",
-  "artifactUrl": "https://example.com/concepts/myconcept-v1.0.0.ts"
+  "unique_name": "MyNewConcept",
+  "files": {
+    "src/index.ts": [/* Uint8Array as array of numbers */],
+    "README.md": [/* Uint8Array as array of numbers */]
+  }
 }
 ```
+
+**Note:**
+- `unique_name` (string, required): A unique name for the concept. Must not already exist.
+- `files` (object, required): A map where keys are file paths (e.g., "src/index.ts", "README.md") and values are file contents as arrays of numbers representing Uint8Array bytes
+- When sent as JSON, `files` should be an object with string keys and array-of-numbers values (e.g., `{"path/to/file.txt": [104, 101, 108, 108, 111]}`)
+- Authentication is provided via the `Authorization` header with a Bearer token
+- The user extracted from the access token becomes the author of the concept
+- This endpoint automatically creates version 1 of the concept
 
 **Response:**
 ```json
 {
-  "version": "version789"
+  "concept": "concept123",
+  "version": "version456",
+  "unique_name": "MyNewConcept",
+  "ok": true
 }
 ```
 
 **Error Responses:**
-- `{ "error": "concept is required" }` (400)
-- `{ "error": "semver is required" }` (400)
-- `{ "error": "artifactUrl is required" }` (400)
+- `{ "error": "unique_name is required" }` (400)
+- `{ "error": "author is required" }` (400)
+- `{ "error": "A concept with this unique_name already exists" }` (409)
+- `{ "error": "files is required" }` (400)
+- `{ "error": "version must be a non-negative number" }` (400)
 - `{ "error": "Concept does not exist" }` (404)
-- `{ "error": "A version with this semver already exists and is not YANKED" }` (409)
+- `{ "error": "A version with this concept and version number already exists" }` (409)
+- `{ "error": "Failed to upload file(s) to storage: ..." }` (500)
+- `{ "error": "Authorization header with Bearer token is required" }` (401)
+- `{ "error": "Access token expired" }` (401)
+- `{ "error": "Invalid token signature" }` (401)
+- `{ "error": "Session not found or revoked" }` (401)
+- `{ "error": "Invalid access token" }` (401)
 
----
-
-#### `POST /api/ConceptRegistering/deprecate`
-
-Deprecates a published version.
-
-**Request Body:**
-```json
-{
-  "version": "version789"
-}
-```
-
-**Response:**
-```json
-{
-  "ok": true
-}
-```
-
-**Error Responses:**
-- `{ "error": "version is required" }` (400)
-- `{ "error": "Version does not exist" }` (404)
-- `{ "error": "Version must be PUBLISHED to deprecate" }` (400)
-
----
-
-#### `POST /api/ConceptRegistering/yank`
-
-Yanks a published or deprecated version.
-
-**Request Body:**
-```json
-{
-  "version": "version789"
-}
-```
-
-**Response:**
-```json
-{
-  "ok": true
-}
-```
-
-**Error Responses:**
-- `{ "error": "version is required" }` (400)
-- `{ "error": "Version does not exist" }` (404)
-- `{ "error": "Version must be PUBLISHED or DEPRECATED to yank" }` (400)
-
----
-
-#### `POST /api/ConceptRegistering/_latestPublished`
-
-Query: Returns the most recently published version for a concept.
-
-**Request Body:**
-```json
-{
-  "concept": "concept456"
-}
-```
-
-**Response:**
-```json
-[
-  {
-    "version": "version789"
-  }
-]
-```
-
-**Note:** Returns empty array if no published version exists.
-
----
-
-#### `POST /api/ConceptRegistering/_findByName`
-
-Query: Finds concepts by name substring (case-insensitive).
-
-**Request Body:**
-```json
-{
-  "substring": "Awesome"
-}
-```
-
-**Response:**
-```json
-[
-  {
-    "concept": "concept456"
-  },
-  {
-    "concept": "concept789"
-  }
-]
+**Example using curl:**
+```bash
+curl -X POST http://localhost:8000/api/registry/publish \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "unique_name": "MyNewConcept",
+    "files": {
+      "src/index.ts": "...",
+      "README.md": "..."
+    }
+  }'
 ```
 
 ---
 
-#### `POST /api/ConceptRegistering/_getAll`
+#### `POST /api/registry/all`
 
-Query: Returns all concepts in the registry with their associated versions.
+Retrieves all registered concepts from the registry. This endpoint returns a list of all concepts with their details including unique name, author, and timestamps.
+
+**Headers:**
+- `Content-Type: application/json` (optional)
 
 **Request Body:**
 ```json
 {}
 ```
 
-**Response:**
-```json
-[
-  {
-    "concept": "concept456",
-    "uniqueName": "MyAwesomeConcept",
-    "owner": "author123",
-    "versions": [
-      {
-        "version": "version789",
-        "semver": "1.0.0",
-        "artifactUrl": "https://example.com/concepts/myconcept-v1.0.0.ts",
-        "status": "PUBLISHED",
-        "publishedAt": "2024-01-15T10:30:00.000Z"
-      },
-      {
-        "version": "version790",
-        "semver": "1.1.0",
-        "artifactUrl": "https://example.com/concepts/myconcept-v1.1.0.ts",
-        "status": "PUBLISHED",
-        "publishedAt": "2024-02-01T14:20:00.000Z"
-      }
-    ]
-  },
-  {
-    "concept": "concept789",
-    "uniqueName": "AnotherConcept",
-    "owner": "author456",
-    "versions": []
-  }
-]
-```
-
-**Note:** Returns an array of all concepts, each with its complete version history. Concepts without versions will have an empty `versions` array.
-
----
-
-#### `POST /api/ConceptRegistering/_getOwner`
-
-Query: Returns the owner of a concept.
-
-**Request Body:**
-```json
-{
-  "concept": "concept456"
-}
-```
-
-**Response:**
-```json
-[
-  {
-    "owner": "author123"
-  }
-]
-```
-
----
-
-#### `POST /api/ConceptRegistering/_getOwnerOfVersion`
-
-Query: Returns the owner of the concept that a version belongs to.
-
-**Request Body:**
-```json
-{
-  "version": "version789"
-}
-```
-
-**Response:**
-```json
-[
-  {
-    "owner": "author123"
-  }
-]
-```
-
----
-
-#### `POST /api/ConceptRegistering/_getUniqueName`
-
-Query: Returns the unique name of a concept.
-
-**Request Body:**
-```json
-{
-  "concept": "concept456"
-}
-```
-
-**Response:**
-```json
-[
-  {
-    "uniqueName": "MyAwesomeConcept"
-  }
-]
-```
-
----
-
-#### `POST /api/ConceptRegistering/_artifactUrlOfVersion`
-
-Query: Returns the artifact URL of a version.
-
-**Request Body:**
-```json
-{
-  "version": "version789"
-}
-```
-
-**Response:**
-```json
-[
-  {
-    "artifactUrl": "https://example.com/concepts/myconcept-v1.0.0.ts"
-  }
-]
-```
-
----
-
-### Registering
-
-Manages concept file registration and downloads.
-
-#### `POST /api/Registering/upload`
-
-Uploads/registers a concept file.
-
-**Request Body:**
-```json
-{
-  "uniqueName": "MyConcept",
-  "url": "https://example.com/concepts/myconcept.ts",
-  "author": "user123"
-}
-```
+**Note:**
+- No authentication required
+- No request body parameters needed (empty object or no body)
+- Returns all concepts registered in the system
 
 **Response:**
 ```json
 {
-  "id": "concept456"
+  "results": [
+    {
+      "concept": "concept123",
+      "unique_name": "MyNewConcept",
+      "author": "user456",
+      "created_at": "2024-01-15T10:30:00.000Z",
+      "updated_at": "2024-01-15T10:30:00.000Z"
+    },
+    {
+      "concept": "concept789",
+      "unique_name": "AnotherConcept",
+      "author": "user123",
+      "created_at": "2024-01-14T08:20:00.000Z",
+      "updated_at": "2024-01-14T08:20:00.000Z"
+    }
+  ]
 }
 ```
 
-**Error Responses:**
-- `{ "error": "uniqueName, url, and author are required" }` (400)
-- `{ "error": "unique_name already registered" }` (409)
+**Note:**
+- If no concepts are registered, returns an empty array: `{ "results": [] }`
+- Each concept in the results includes:
+  - `concept` (string): The unique concept ID
+  - `unique_name` (string): The unique name of the concept
+  - `author` (string): The user ID of the concept author
+  - `created_at` (string): ISO 8601 timestamp of when the concept was created
+  - `updated_at` (string): ISO 8601 timestamp of when the concept was last updated
 
----
-
-#### `POST /api/Registering/download`
-
-Downloads/retrieves a registered concept.
-
-**Request Body:**
-```json
-{
-  "id": "concept456"
-}
+**Example using curl:**
+```bash
+curl -X POST http://localhost:8000/api/registry/all \
+  -H "Content-Type: application/json" \
+  -d '{}'
 ```
-
-**Response:**
-```json
-{
-  "url": "https://example.com/concepts/myconcept.ts",
-  "uniqueName": "MyConcept",
-  "author": "user123"
-}
-```
-
-**Error Responses:**
-- `{ "error": "id is required" }` (400)
-- `{ "error": "Concept not found" }` (404)
-
----
-
-#### `POST /api/Registering/remove`
-
-Removes a registered concept.
-
-**Request Body:**
-```json
-{
-  "id": "concept456"
-}
-```
-
-**Response:**
-```json
-{
-  "ok": true
-}
-```
-
-**Error Responses:**
-- `{ "error": "id is required" }` (400)
-- `{ "error": "Concept not found" }` (404)
 
 ---
 

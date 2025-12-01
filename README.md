@@ -25,6 +25,9 @@ Functional Design is a separate folder in the repo
    Then edit `.env` and set:
    - `MONGODB_URL`: Your MongoDB connection string (e.g., `mongodb://localhost:27017` or MongoDB Atlas connection string)
    - `DB_NAME`: The name of the database to use (e.g., `concepthub`)
+   - `SUPABASE_URL`: Your Supabase project URL (e.g., `https://your-project.supabase.co`)
+   - `SUPABASE_SECRET_KEY`: Your Supabase secret key (for server-side storage operations)
+   - `SUPABASE_STORAGE_BUCKET`: The name of the storage bucket to use for concepts (defaults to `concepts` if not set)
 
 2. Generate imports (required before running server or tests):
 
@@ -46,6 +49,9 @@ The application requires the following environment variables to be set in a `.en
 
 - `MONGODB_URL`: MongoDB connection string (e.g., `mongodb://localhost:27017` or MongoDB Atlas connection string)
 - `DB_NAME`: Name of the database to use (e.g., `concepthub`)
+- `SUPABASE_URL`: Your Supabase project URL (e.g., `https://your-project.supabase.co`)
+- `SUPABASE_SECRET_KEY`: Your Supabase secret key (for server-side storage operations)
+- `SUPABASE_STORAGE_BUCKET`: (Optional) The name of the storage bucket to use for concepts (defaults to `concepts` if not set)
 
 Copy `.env.template` to `.env` and fill in your values:
 

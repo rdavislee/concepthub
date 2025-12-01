@@ -3,333 +3,181 @@ import { ID } from "@utils/types.ts";
 import { freshID } from "@utils/database.ts";
 
 // Generic external parameter type (opaque identifier)
-export type Author = ID;
+export type User = ID;
 
-// Internal entity types
+// Internal entity type
 export type Concept = ID;
-export type Version = ID;
-
-// Status enum for versions
-export type VersionStatus = "DRAFT" | "PUBLISHED" | "DEPRECATED" | "YANKED";
+export type Item = ID;
 
 const PREFIX = "ConceptRegistering" + ".";
 
 /**
  * State: a set of Concepts with
- *   a uniqueName String
- *   an owner Author
+ *   a unique_name String
+ *   an author Users
+ *   a created_at DateTime
+ *   an updated_at DateTime
  */
 interface ConceptDoc {
   _id: Concept;
-  uniqueName: string;
-  owner: Author;
-}
-
-/**
- * State: a set of Versions with
- *   a concept Concepts
- *   a semver String
- *   an artifactUrl String
- *   a status of DRAFT or PUBLISHED or DEPRECATED or YANKED
- *   a publishedAt DateTime
- */
-interface VersionDoc {
-  _id: Version;
-  concept: Concept;
-  semver: string;
-  artifactUrl: string;
-  status: VersionStatus;
-  publishedAt: Date;
+  unique_name: string;
+  author: User;
+  created_at: Date;
+  updated_at: Date;
 }
 
 /**
  * @concept ConceptRegistering
- * @purpose Register and version concept artifacts under unique names; allow publishing, deprecation, and yanking of versions.
- * @principle An author publishes a concept/version with a unique name and artifact location; later versions can be published; a version may be deprecated or yanked.
+ * @purpose Capture registered concepts with unique names so they can be managed, renamed, or removed later, preserving authorship.
+ * @principle Every registered concept has a unique name and an author; adding creates new records, changing the name updates them, and removing deletes them.
  */
 export default class ConceptRegisteringConcept {
   concepts: Collection<ConceptDoc>;
-  versions: Collection<VersionDoc>;
 
   constructor(private readonly db: Db) {
     this.concepts = this.db.collection<ConceptDoc>(PREFIX + "concepts");
-    this.versions = this.db.collection<VersionDoc>(PREFIX + "versions");
   }
 
   /**
-   * reserveName (uniqueName: String, owner: Author) : (concept: Concepts)
+   * add (unique_name: String, author: Users) : (id: Item)
    *
-   * **requires** no concept with uniqueName
+   * **requires** unique_name is not already used
    *
-   * **effects** create concept with owner
+   * **effects** create concept with id := fresh, unique_name := unique_name, author := author, created_at := now, updated_at := now
    */
-  async reserveName(
-    { uniqueName, owner }: { uniqueName: string; owner: Author },
-  ): Promise<{ concept: Concept } | { error: string }> {
-    if (!uniqueName?.trim()) {
-      return { error: "uniqueName is required" };
+  async add(
+    { unique_name, author }: { unique_name: string; author: User },
+  ): Promise<{ id: Item } | { error: string }> {
+    if (!unique_name?.trim()) {
+      return { error: "unique_name is required" };
     }
-    if (!owner) {
-      return { error: "owner is required" };
+    if (!author) {
+      return { error: "author is required" };
     }
-    const existing = await this.concepts.findOne({ uniqueName });
+    const existing = await this.concepts.findOne({ unique_name });
     if (existing) {
-      return { error: "A concept with this uniqueName already exists" };
+      return { error: "A concept with this unique_name already exists" };
     }
-    const conceptId = freshID() as Concept;
+    const now = new Date();
+    const id = freshID() as Concept;
     await this.concepts.insertOne({
-      _id: conceptId,
-      uniqueName,
-      owner,
+      _id: id,
+      unique_name,
+      author,
+      created_at: now,
+      updated_at: now,
     });
-    return { concept: conceptId };
+    return { id };
   }
 
   /**
-   * publishVersion (concept: Concepts, semver: String, artifactUrl: String) : (version: Versions)
+   * changeName (id: Item, unique_name: String) : (ok: Flag)
    *
-   * **requires** concept exists; no identical semver (unless YANKED)
+   * **requires** concept exists for id; unique_name is not already used
    *
-   * **effects** create version; status=PUBLISHED; set publishedAt
+   * **effects** set unique_name := unique_name, updated_at := now
    */
-  async publishVersion(
-    { concept, semver, artifactUrl }: {
-      concept: Concept;
-      semver: string;
-      artifactUrl: string;
-    },
-  ): Promise<{ version: Version } | { error: string }> {
+  async changeName(
+    { id, unique_name }: { id: Item; unique_name: string },
+  ): Promise<{ ok: boolean } | { error: string }> {
+    if (!id) {
+      return { error: "id is required" };
+    }
+    if (!unique_name?.trim()) {
+      return { error: "unique_name is required" };
+    }
+    const concept = await this.concepts.findOne({ _id: id });
     if (!concept) {
-      return { error: "concept is required" };
-    }
-    if (!semver?.trim()) {
-      return { error: "semver is required" };
-    }
-    if (!artifactUrl?.trim()) {
-      return { error: "artifactUrl is required" };
-    }
-    // Check concept exists
-    const conceptDoc = await this.concepts.findOne({ _id: concept });
-    if (!conceptDoc) {
       return { error: "Concept does not exist" };
     }
-    // Check no identical semver unless YANKED
-    const existingVersion = await this.versions.findOne({ concept, semver });
-    if (existingVersion && existingVersion.status !== "YANKED") {
-      return {
-        error: "A version with this semver already exists and is not YANKED",
-      };
+    // Check if the new name is already used by a different concept
+    const existingWithName = await this.concepts.findOne({ unique_name });
+    if (existingWithName && existingWithName._id !== id) {
+      return { error: "A concept with this unique_name already exists" };
     }
-    const versionId = freshID() as Version;
-    await this.versions.insertOne({
-      _id: versionId,
-      concept,
-      semver,
-      artifactUrl,
-      status: "PUBLISHED",
-      publishedAt: new Date(),
-    });
-    return { version: versionId };
-  }
-
-  /**
-   * deprecate (version: Versions) : (ok: Flag)
-   *
-   * **requires** version exists; status=PUBLISHED
-   *
-   * **effects** set status := DEPRECATED
-   */
-  async deprecate(
-    { version }: { version: Version },
-  ): Promise<{ ok: boolean } | { error: string }> {
-    if (!version) {
-      return { error: "version is required" };
-    }
-    const versionDoc = await this.versions.findOne({ _id: version });
-    if (!versionDoc) {
-      return { error: "Version does not exist" };
-    }
-    if (versionDoc.status !== "PUBLISHED") {
-      return { error: "Version must be PUBLISHED to deprecate" };
-    }
-    await this.versions.updateOne(
-      { _id: version },
-      { $set: { status: "DEPRECATED" } },
+    const now = new Date();
+    await this.concepts.updateOne(
+      { _id: id },
+      { $set: { unique_name, updated_at: now } },
     );
     return { ok: true };
   }
 
   /**
-   * yank (version: Versions) : (ok: Flag)
+   * remove (id: Item) : (ok: Flag)
    *
-   * **requires** version exists; status in {PUBLISHED, DEPRECATED}
+   * **requires** concept exists for id
    *
-   * **effects** set status := YANKED
+   * **effects** delete that concept
    */
-  async yank(
-    { version }: { version: Version },
+  async remove(
+    { id }: { id: Item },
   ): Promise<{ ok: boolean } | { error: string }> {
-    if (!version) {
-      return { error: "version is required" };
+    if (!id) {
+      return { error: "id is required" };
     }
-    const versionDoc = await this.versions.findOne({ _id: version });
-    if (!versionDoc) {
-      return { error: "Version does not exist" };
+    const result = await this.concepts.deleteOne({ _id: id });
+    if (result.deletedCount === 0) {
+      return { error: "Concept does not exist" };
     }
-    if (
-      versionDoc.status !== "PUBLISHED" && versionDoc.status !== "DEPRECATED"
-    ) {
-      return { error: "Version must be PUBLISHED or DEPRECATED to yank" };
-    }
-    await this.versions.updateOne(
-      { _id: version },
-      { $set: { status: "YANKED" } },
-    );
     return { ok: true };
   }
 
   /**
-   * _latestPublished(concept: Concepts) : (version: Versions)
+   * _getAuthor (concept: Concepts) : (author: Users)
    *
-   * Returns the most recently published version for the given concept.
+   * **requires** concept exists
+   *
+   * **effects** returns the author of the concept
    */
-  async _latestPublished(
+  async _getAuthor(
     { concept }: { concept: Concept },
-  ): Promise<Array<{ version: Version }>> {
-    const versionDoc = await this.versions
-      .find({ concept, status: "PUBLISHED" })
-      .sort({ publishedAt: -1 })
-      .limit(1)
-      .toArray();
-    if (versionDoc.length === 0) {
-      return [];
-    }
-    return [{ version: versionDoc[0]._id }];
-  }
-
-  /**
-   * _findByName(substring: String) : (concept: Concepts)
-   *
-   * Returns concepts whose uniqueName contains the given substring.
-   */
-  async _findByName(
-    { substring }: { substring: string },
-  ): Promise<Array<{ concept: Concept }>> {
-    const docs = await this.concepts
-      .find({ uniqueName: { $regex: substring, $options: "i" } })
-      .toArray();
-    return docs.map((d) => ({ concept: d._id }));
-  }
-
-  /**
-   * _getAll() : (concept: Concepts, uniqueName: String, owner: Author, versions: Array<{version: Versions, semver: String, artifactUrl: String, status: VersionStatus, publishedAt: Date}>)
-   *
-   * Returns all concepts in the registry with their associated versions.
-   */
-  async _getAll(): Promise<
-    Array<{
-      concept: Concept;
-      uniqueName: string;
-      owner: Author;
-      versions: Array<{
-        version: Version;
-        semver: string;
-        artifactUrl: string;
-        status: VersionStatus;
-        publishedAt: Date;
-      }>;
-    }>
-  > {
-    const conceptDocs = await this.concepts.find({}).toArray();
-    const allVersions = await this.versions.find({}).toArray();
-
-    // Group versions by concept
-    const versionsByConcept = new Map<Concept, typeof allVersions>();
-    for (const version of allVersions) {
-      const existing = versionsByConcept.get(version.concept) || [];
-      existing.push(version);
-      versionsByConcept.set(version.concept, existing);
-    }
-
-    // Build result with concepts and their versions
-    return conceptDocs.map((conceptDoc) => {
-      const conceptVersions = versionsByConcept.get(conceptDoc._id) || [];
-      return {
-        concept: conceptDoc._id,
-        uniqueName: conceptDoc.uniqueName,
-        owner: conceptDoc.owner,
-        versions: conceptVersions.map((v) => ({
-          version: v._id,
-          semver: v.semver,
-          artifactUrl: v.artifactUrl,
-          status: v.status,
-          publishedAt: v.publishedAt,
-        })),
-      };
-    });
-  }
-
-  /**
-   * _getOwner(concept: Concepts) : (owner: Author)
-   *
-   * Returns the owner of the given concept.
-   */
-  async _getOwner(
-    { concept }: { concept: Concept },
-  ): Promise<Array<{ owner: Author }>> {
+  ): Promise<Array<{ author: User }>> {
     const conceptDoc = await this.concepts.findOne({ _id: concept });
     if (!conceptDoc) {
       return [];
     }
-    return [{ owner: conceptDoc.owner }];
+    return [{ author: conceptDoc.author }];
   }
 
   /**
-   * _getOwnerOfVersion(version: Versions) : (owner: Author)
+   * _getUniqueName (concept: Concepts) : (unique_name: String)
    *
-   * Returns the owner of the concept that the version belongs to.
-   */
-  async _getOwnerOfVersion(
-    { version }: { version: Version },
-  ): Promise<Array<{ owner: Author }>> {
-    const versionDoc = await this.versions.findOne({ _id: version });
-    if (!versionDoc) {
-      return [];
-    }
-    const conceptDoc = await this.concepts.findOne({ _id: versionDoc.concept });
-    if (!conceptDoc) {
-      return [];
-    }
-    return [{ owner: conceptDoc.owner }];
-  }
-
-  /**
-   * _getUniqueName(concept: Concepts) : (uniqueName: String)
+   * **requires** concept exists
    *
-   * Returns the uniqueName of the given concept.
+   * **effects** returns the unique_name of the concept
    */
   async _getUniqueName(
     { concept }: { concept: Concept },
-  ): Promise<Array<{ uniqueName: string }>> {
+  ): Promise<Array<{ unique_name: string }>> {
     const conceptDoc = await this.concepts.findOne({ _id: concept });
     if (!conceptDoc) {
       return [];
     }
-    return [{ uniqueName: conceptDoc.uniqueName }];
+    return [{ unique_name: conceptDoc.unique_name }];
   }
 
   /**
-   * _artifactUrlOfVersion(version: Versions) : (artifactUrl: String)
+   * _getAll () : (concept: Concepts, unique_name: String, author: Users, created_at: DateTime, updated_at: DateTime)
    *
-   * Returns the artifactUrl of the given version.
+   * **requires** true
+   *
+   * **effects** returns all registered concepts with their details
    */
-  async _artifactUrlOfVersion(
-    { version }: { version: Version },
-  ): Promise<Array<{ artifactUrl: string }>> {
-    const versionDoc = await this.versions.findOne({ _id: version });
-    if (!versionDoc) {
-      return [];
-    }
-    return [{ artifactUrl: versionDoc.artifactUrl }];
+  async _getAll(): Promise<Array<{
+    concept: Concept;
+    unique_name: string;
+    author: User;
+    created_at: Date;
+    updated_at: Date;
+  }>> {
+    const conceptDocs = await this.concepts.find({}).toArray();
+    return conceptDocs.map((doc) => ({
+      concept: doc._id,
+      unique_name: doc.unique_name,
+      author: doc.author,
+      created_at: doc.created_at,
+      updated_at: doc.updated_at,
+    }));
   }
 }
