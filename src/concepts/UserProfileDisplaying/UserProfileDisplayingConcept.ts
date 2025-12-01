@@ -35,83 +35,43 @@ export default class UserProfileDisplayingConcept {
   }
 
   /**
-   * Action: setDisplayName (user: Users, name: String) : (ok: Flag)
+   * Action: setProfile (user: Users, displayName: String, avatarUrl: String, bio: String) : (ok: Flag)
    * requires: user exists
-   * effects: set displayName := name
+   * effects: set only the provided fields, leaving others unchanged
    */
-  async setDisplayName(
-    { user, name }: { user: User; name: string },
+  async setProfile(
+    {
+      user,
+      displayName,
+      avatarUrl,
+      bio,
+    }: {
+      user: User;
+      displayName?: string;
+      avatarUrl?: string;
+      bio?: string;
+    },
   ): Promise<{ ok: boolean } | { error: string }> {
     if (!user) {
       return { error: "User ID is required" };
     }
 
+    // Build update object with only provided fields
+    const updateFields: Partial<ProfileDoc> = { user };
+    if (displayName !== undefined) {
+      updateFields.displayName = displayName.trim() || undefined;
+    }
+    if (avatarUrl !== undefined) {
+      updateFields.avatarUrl = avatarUrl.trim() || undefined;
+    }
+    if (bio !== undefined) {
+      updateFields.bio = bio.trim() || undefined;
+    }
+
     await this.profiles.updateOne(
       { _id: user },
-      { $set: { user, displayName: name } },
+      { $set: updateFields },
       { upsert: true },
-    );
-
-    return { ok: true };
-  }
-
-  /**
-   * Action: setAvatar (user: Users, url: String) : (ok: Flag)
-   * requires: user exists
-   * effects: set avatarUrl := url
-   */
-  async setAvatar(
-    { user, url }: { user: User; url: string },
-  ): Promise<{ ok: boolean } | { error: string }> {
-    if (!user) {
-      return { error: "User ID is required" };
-    }
-
-    await this.profiles.updateOne(
-      { _id: user },
-      { $set: { user, avatarUrl: url } },
-      { upsert: true },
-    );
-
-    return { ok: true };
-  }
-
-  /**
-   * Action: setBio (user: Users, bio: String) : (ok: Flag)
-   * requires: user exists
-   * effects: set bio := bio
-   */
-  async setBio(
-    { user, bio }: { user: User; bio: string },
-  ): Promise<{ ok: boolean } | { error: string }> {
-    if (!user) {
-      return { error: "User ID is required" };
-    }
-
-    await this.profiles.updateOne(
-      { _id: user },
-      { $set: { user, bio } },
-      { upsert: true },
-    );
-
-    return { ok: true };
-  }
-
-  /**
-   * Action: clearProfile (user: Users) : (ok: Flag)
-   * requires: user exists
-   * effects: unset display fields for user
-   */
-  async clearProfile(
-    { user }: { user: User },
-  ): Promise<{ ok: boolean } | { error: string }> {
-    if (!user) {
-      return { error: "User ID is required" };
-    }
-
-    await this.profiles.updateOne(
-      { _id: user },
-      { $unset: { displayName: "", avatarUrl: "", bio: "" } },
     );
 
     return { ok: true };

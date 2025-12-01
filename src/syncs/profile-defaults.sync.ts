@@ -8,8 +8,8 @@ export const DefaultDisplayNameOnRegister: Sync = (
   when: actions(
     [UserAuthenticating.register, { username, password }, { user }],
   ),
-  then: actions([UserProfileDisplaying.setDisplayName, {
+  then: actions([UserProfileDisplaying.setProfile, {
     user,
-    name: username,
+    displayName: username,
   }]),
 });

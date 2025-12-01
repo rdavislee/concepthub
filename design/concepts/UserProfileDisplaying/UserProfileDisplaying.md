@@ -19,21 +19,9 @@ a set of Profiles with
 
 **actions**
 
-* **setDisplayName (user: Users, name: String) : (ok: Flag)**
+* **setProfile (user: Users, displayName: String, avatarUrl: String, bio: String) : (ok: Flag)**
   requires: user exists
-  effects: set displayName := name
-
-* **setAvatar (user: Users, url: String) : (ok: Flag)**
-  requires: user exists
-  effects: set avatarUrl := url
-
-* **setBio (user: Users, bio: String) : (ok: Flag)**
-  requires: user exists
-  effects: set bio := bio
-
-* **clearProfile (user: Users) : (ok: Flag)**
-  requires: user exists
-  effects: unset display fields for user
+  effects: set only the provided fields, leaving others unchanged
 
 **queries**
 
