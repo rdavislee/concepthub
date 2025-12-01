@@ -38,7 +38,7 @@ export const RegisterResponseError: Sync = ({ request, error }) => ({
     [Requesting.request, { path: "/auth/register" }, { request }],
     [UserAuthenticating.register, {}, { error }],
   ),
-  then: actions([Requesting.respond, { request, error }]),
+  then: actions([Requesting.respond, { request, error, statusCode: 409 }]),
 });
 
 //-- User Login & Session Creation --//
@@ -78,7 +78,7 @@ export const LoginResponseError: Sync = ({ request, error }) => ({
     [Requesting.request, { path: "/auth/login" }, { request }],
     [UserAuthenticating.login, {}, { error }],
   ),
-  then: actions([Requesting.respond, { request, error }]),
+  then: actions([Requesting.respond, { request, error, statusCode: 401 }]),
 });
 
 //-- Token Refresh --//
@@ -111,7 +111,7 @@ export const RefreshResponseError: Sync = ({ request, error }) => ({
     [Requesting.request, { path: "/auth/refresh" }, { request }],
     [UserSessioning.refresh, {}, { error }],
   ),
-  then: actions([Requesting.respond, { request, error }]),
+  then: actions([Requesting.respond, { request, error, statusCode: 401 }]),
 });
 
 //-- User Logout --//
@@ -149,7 +149,7 @@ export const LogoutResponseError: Sync = ({ request, accessToken, error }) => ({
     }, { error });
     return frames.filter(($) => $[error] !== undefined);
   },
-  then: actions([Requesting.respond, { request, error }]),
+  then: actions([Requesting.respond, { request, error, statusCode: 401 }]),
 });
 
 export const LogoutResponseDeleteError: Sync = ({ request, error }) => ({
@@ -157,7 +157,7 @@ export const LogoutResponseDeleteError: Sync = ({ request, error }) => ({
     [Requesting.request, { path: "/auth/logout" }, { request }],
     [UserSessioning.delete, {}, { error }],
   ),
-  then: actions([Requesting.respond, { request, error }]),
+  then: actions([Requesting.respond, { request, error, statusCode: 401 }]),
 });
 
 //-- Session Validation (frontend may poll /UserSessioning/_getUser) --//
@@ -195,5 +195,5 @@ export const SessionValidationError: Sync = (
     }, { error });
     return frames.filter(($) => $[error] !== undefined);
   },
-  then: actions([Requesting.respond, { request, error }]),
+  then: actions([Requesting.respond, { request, error, statusCode: 401 }]),
 });

@@ -268,7 +268,8 @@ export function startRequestingServer(
 
       // Extract Authorization header (Bearer token) if present
       // Try both "Authorization" and "authorization" (HTTP headers are case-insensitive)
-      const authHeader = c.req.header("Authorization") || c.req.header("authorization");
+      const authHeader = c.req.header("Authorization") ||
+        c.req.header("authorization");
       let accessToken: string | undefined;
       if (authHeader) {
         const trimmedHeader = authHeader.trim();
@@ -279,10 +280,11 @@ export function startRequestingServer(
           accessToken = trimmedHeader.substring(6).trim();
         }
       }
-      
+
       // Check if this endpoint requires authentication
-      const requiresAuth = actionPath === "/auth/logout" || actionPath === "/auth/_getUser";
-      
+      const requiresAuth = actionPath === "/auth/logout" ||
+        actionPath === "/auth/_getUser";
+
       if (requiresAuth && !accessToken) {
         return c.json(
           { error: "Authorization header with Bearer token is required" },
@@ -308,6 +310,17 @@ export function startRequestingServer(
 
       // 3. Send the response back to the client.
       const { response } = responseArray[0];
+      // Check if response includes a statusCode field for HTTP status code
+      if (
+        response && typeof response === "object" && "statusCode" in response
+      ) {
+        const { statusCode, ...responseBody } = response as {
+          statusCode: number;
+          [key: string]: unknown;
+        };
+        // deno-lint-ignore no-explicit-any
+        return c.json(responseBody, statusCode as any);
+      }
       return c.json(response);
     } catch (e) {
       if (e instanceof Error) {
