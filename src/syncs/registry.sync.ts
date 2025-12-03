@@ -7,11 +7,9 @@ import {
   UserSessioning,
 } from "@concepts";
 
-//-- Publish Request --//
-// When a publish request comes in, check if concept exists.
-// If NOT: Create concept (ConceptRegistering.add)
-// If YES: Do nothing (proceed to existing upload flow)
-export const PublishRequest: Sync = ({
+//-- Publish Request (New Concept) --//
+// Matches if concept does NOT exist
+export const PublishRequestNew: Sync = ({
   request,
   unique_name,
   accessToken,
@@ -24,44 +22,38 @@ export const PublishRequest: Sync = ({
     { request },
   ]),
   where: async (frames) => {
-    // Map accessToken to user
     frames = await frames.query(UserSessioning._getUser, {
       session: accessToken,
     }, { user });
     
-    // Filter out if user not found
     frames = frames.filter(($) => $[user] !== undefined);
     if (frames.length === 0) return [];
 
-    // Check if concept exists
     const checkFrames = await frames.query(ConceptRegistering._getAll, {}, {
       unique_name,
       concept,
     });
     
-    // If any concept with this unique_name exists, filter this frame OUT (prevent add)
-    // We are looking for the case where the concept matches the request's unique_name
     const existing = checkFrames.find(($) => $[unique_name] === frames[0][unique_name]);
-    
     if (existing) {
-        // Concept exists! Return empty to prevent 'then' (add) from firing
-        return [];
+        return []; // Filter OUT if exists
     }
     
-    // Concept does not exist, proceed to add
     return frames;
   },
   then: actions([ConceptRegistering.add, { unique_name, author: user }]),
 });
 
 //-- Publish Version Upload (New Concept) --//
-// Matches when a concept is newly created
+// Matches when a concept is newly created (via add)
 export const PublishVersionUploadNew: Sync = ({
   request,
   concept,
   files,
   filesMap,
   author,
+  now,
+  created_at,
 }) => ({
   when: actions(
     [Requesting.request, {
@@ -71,16 +63,14 @@ export const PublishVersionUploadNew: Sync = ({
     [ConceptRegistering.add, {}, { id: concept }],
   ),
   where: async (frames) => {
-    // Check authorship (guaranteed by flow, but good to have)
     frames = await frames.query(ConceptRegistering._getAuthor, { concept }, {
       author,
     });
 
     const result = frames.map(($) => {
-      const frame = { ...$ };
+      const frame = { ...$, [now]: new Date() }; // Generate fresh date
       const filesValue = $[files] as unknown;
 
-      // Convert files object to Map
       if (filesValue) {
         if (filesValue instanceof Map) {
           frame[filesMap] = filesValue;
@@ -123,14 +113,14 @@ export const PublishVersionUploadNew: Sync = ({
       {
         concept,
         version: 1,
-        createdAt: new Date(),
+        createdAt: now, // Use generated date
       },
     ],
   ),
 });
 
 //-- Publish Version Upload (Existing Concept) --//
-// Matches when a concept already exists
+// Matches when a concept already exists (via Request only, guarded by queries)
 export const PublishVersionUploadExisting: Sync = ({
   request,
   unique_name,
@@ -142,6 +132,10 @@ export const PublishVersionUploadExisting: Sync = ({
   author,
   latest_version,
   next_version,
+  now,
+  created_at,
+  versions,
+  version_created_at,
 }) => ({
   when: actions([
     Requesting.request,
@@ -156,44 +150,58 @@ export const PublishVersionUploadExisting: Sync = ({
     frames = frames.filter(($) => $[user] !== undefined);
     if (frames.length === 0) return [];
 
-    // 2. Check if concept exists and get ID
+    // 2. Check if concept exists and get ID using _lookup query
     const originalFrame = frames[0];
-    let conceptFrames = await frames.query(ConceptRegistering._getAll, {}, {
-      concept,
-      unique_name,
-      author,
-    });
+    const lookupFrames = await frames.query(ConceptRegistering._lookup, { unique_name }, { concept });
     
-    // Match by unique_name
-    conceptFrames = conceptFrames.filter(($) => $[unique_name] === originalFrame[unique_name]);
-    
-    // If DOES NOT exist, return empty (handled by PublishRequest -> New flow)
-    if (conceptFrames.length === 0) return [];
-    
-    // 3. Check Authorship
-    const conceptFrame = conceptFrames[0];
-    if (conceptFrame[author] !== originalFrame[user]) {
-        // User is not the author!
-        // TODO: Should probably respond with error, but for now just don't process
-        return [];
+    if (lookupFrames.length === 0) {
+      return []; // Concept does not exist (handled by New flow)
     }
     
-    // 4. Determine Next Version
-    const conceptId = conceptFrame[concept];
+    const conceptId = lookupFrames[0][concept];
+    // Merge concept ID into frame
+    const frameWithConcept = { ...originalFrame, [concept]: conceptId };
+    
+    // 3. Check Authorship
+    const authorFrames = await new Frames(frameWithConcept).query(ConceptRegistering._getAuthor, { concept }, { author });
+    if (authorFrames.length === 0 || authorFrames[0][author] !== originalFrame[user]) {
+        return []; // Not author or concept somehow missing
+    }
+    
+    // 4. Determine Next Version and PREVENT DOUBLE FIRE
     // Get latest version
-    const versionFrames = await new Frames(conceptFrame).query(
+    const versionFrames = await new Frames(frameWithConcept).query(
         ConceptVersioning._get, 
         { concept: conceptId }, 
-        { version: latest_version }
+        { version: latest_version, created_at: version_created_at }
     );
     
     let nextVersionNum = 1;
     if (versionFrames.length > 0) {
+        // Check for Double Fire (Race Condition with New Flow)
+        // If the latest version was created very recently (< 2000ms), assume it was created by the current request flow
+        // and we should NOT create another one.
+        const lastCreated = versionFrames[0][version_created_at] as Date;
+        const timeDiff = new Date().getTime() - lastCreated.getTime();
+        
+        if (timeDiff < 2000) {
+            return []; // Too recent! Assume duplicate.
+        }
+
         nextVersionNum = (versionFrames[0][latest_version] as number) + 1;
+    } else {
+        // No versions found in ConceptVersioning.
+        // This means it's a New Concept where the New Sync hasn't finished uploading V1 yet.
+        // Safer to assume New flow handles this.
+        return [];
     }
     
-    // Add next_version to frame
-    const frameWithVersion = { ...conceptFrame, [next_version]: nextVersionNum };
+    // Add next_version and fresh date to frame
+    const frameWithVersion = { 
+        ...frameWithConcept, 
+        [next_version]: nextVersionNum,
+        [now]: new Date() 
+    };
     
     // 5. Process Files (Reuse logic)
     const filesValue = originalFrame[files] as unknown;
@@ -237,7 +245,7 @@ export const PublishVersionUploadExisting: Sync = ({
       {
         concept,
         version: next_version,
-        createdAt: new Date(),
+        createdAt: now, // Use generated date
       },
     ],
   ),
@@ -254,17 +262,9 @@ export const PublishResponseSuccess: Sync = ({
   when: actions(
     [Requesting.request, { path: "/registry/publish", unique_name }, { request }],
     // Matches ANY successful upload for this request's unique_name context
-    // Note: We need to bridge unique_name back to concept to ensure we match the right response
-    // But Requesting.request keeps the context.
     [ConceptVersioning.upload, { concept }, { id: version }],
     [ConceptRegistering.addVersion, { concept }, {}],
   ),
-  where: async (frames) => {
-     // Ensure unique_name matches the concept uploaded
-     // (Optional but good for consistency if unique_name is used in response)
-     // The request has unique_name.
-     return frames;
-  },
   then: actions([
     Requesting.respond,
     { request, concept, version, unique_name, ok: true },
@@ -294,8 +294,6 @@ export const PublishResponseErrorVersion: Sync = ({
 }) => ({
   when: actions(
     [Requesting.request, { path: "/registry/publish" }, { request }],
-    // Matches either add or just request existence? 
-    // If upload fails, we want to respond.
     [ConceptVersioning.upload, {}, { error }],
   ),
   then: actions([Requesting.respond, { request, error }]),

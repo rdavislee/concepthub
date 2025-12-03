@@ -21,7 +21,7 @@ a set of Concepts with
 **actions**
 * **add (unique_name: String, author: Users) : (id: Item)**
   requires: unique_name is not already used
-  effects: create concept with id := fresh, unique_name := unique_name, author := author, created_at := now, updated_at := now Versions := empty
+  effects: create concept with id := fresh, unique_name := unique_name, author := author, created_at := now, updated_at := now, Versions := empty
 * **addVersion (concept: Concept, version: number, createdAt: DateTime)**
     requires: Concept exists
     effect: adds version to versions Set
@@ -36,7 +36,7 @@ a set of Concepts with
 `_getAuthor (concept: Item) : (author: Users)`
 `_getUniqueName (concept: Item) : (unique_name: String)`
 `_getVersions (concept: Item) : (versions: set(version, createdAt))`
+`_lookup (unique_name: String) : (id: Item)`
 `_getAll () : (concept: Item, unique_name: String, author: Users, created_at: DateTime, updated_at: DateTime)`
 
 ---
-

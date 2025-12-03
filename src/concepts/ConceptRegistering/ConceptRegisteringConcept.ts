@@ -217,6 +217,23 @@ export default class ConceptRegisteringConcept {
   }
 
   /**
+   * _lookup (unique_name: String) : (id: Item)
+   *
+   * **requires** concept exists
+   *
+   * **effects** returns the id of the concept
+   */
+  async _lookup(
+    { unique_name }: { unique_name: string },
+  ): Promise<Array<{ id: Item }>> {
+    const doc = await this.concepts.findOne({ unique_name });
+    if (!doc) {
+      return [];
+    }
+    return [{ id: doc._id }];
+  }
+
+  /**
    * _getAll () : (concept: Concepts, unique_name: String, author: Users, created_at: DateTime, updated_at: DateTime)
    *
    * **requires** true
