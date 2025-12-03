@@ -3,7 +3,7 @@ import {
   ConceptVersioning,
   DownloadAnalyzing,
   Requesting,
-  Sessioning,
+  UserSessioning,
 } from "@concepts";
 
 /**
@@ -33,7 +33,7 @@ export const DownloadSpecificVersion: Sync = (
   where: async (frames) => {
     // Get the user from the session
     frames = await frames.query(
-      Sessioning._getUser,
+      UserSessioning._getUser,
       { session: request.session },
       { user },
     );
@@ -56,4 +56,3 @@ export const DownloadSpecificVersion: Sync = (
     [Requesting.respond, { request, files, created_at }],
   ),
 });
-
