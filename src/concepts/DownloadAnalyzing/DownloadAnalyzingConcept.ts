@@ -50,10 +50,10 @@ export default class DownloadAnalyzingConcept {
   }
 
   /**
-   * Query: _countForItem(item: Item, from: DateTime, to: DateTime) : (count: Number)
+   * Query: _countForItem(item: Item) : (count: Number)
    */
   async _countForItem(
-    { item, from, to }: { item: Item; from: Date; to: Date },
+    { item }: { item: Item },
   ): Promise<Array<{ count: number }>> {
     const doc = await this.items.findOne(
       { _id: item },
@@ -64,13 +64,6 @@ export default class DownloadAnalyzingConcept {
       return [{ count: 0 }];
     }
 
-    // Filter in memory since we retrieved the specific item's downloads
-    // Note: For very large arrays, an aggregation pipeline would be better.
-    // Given the "Concept" constraint of simple state mapping, memory filter is acceptable 
-    // unless performance issues arise, at which point the implementation would change 
-    // but the interface remains the same.
-    const count = doc.downloads.filter((d) => d.at >= from && d.at <= to).length;
-
-    return [{ count }];
+    return [{ count: doc.downloads.length }];
   }
 }

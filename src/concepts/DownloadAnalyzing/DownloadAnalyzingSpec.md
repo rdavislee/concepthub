@@ -22,5 +22,5 @@ a set of items with
   effects: create download record
 
 **queries**
-`_countForItem(item: Item, from: DateTime, to: DateTime) : (count: Number)`
+`_countForItem(item: Item) : (count: Number)`
 ---
