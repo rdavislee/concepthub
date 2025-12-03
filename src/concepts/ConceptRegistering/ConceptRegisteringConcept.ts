@@ -17,6 +17,9 @@ const PREFIX = "ConceptRegistering" + ".";
  *   an author Users
  *   a created_at DateTime
  *   an updated_at DateTime
+ *   a set of Versions with
+ *     a version number
+ *     a createdAt DateTime
  */
 interface ConceptDoc {
   _id: Concept;
@@ -24,6 +27,10 @@ interface ConceptDoc {
   author: User;
   created_at: Date;
   updated_at: Date;
+  versions?: Array<{
+    version: number;
+    createdAt: Date;
+  }>;
 }
 
 /**
@@ -43,7 +50,7 @@ export default class ConceptRegisteringConcept {
    *
    * **requires** unique_name is not already used
    *
-   * **effects** create concept with id := fresh, unique_name := unique_name, author := author, created_at := now, updated_at := now
+   * **effects** create concept with id := fresh, unique_name := unique_name, author := author, created_at := now, updated_at := now, Versions := empty
    */
   async add(
     { unique_name, author }: { unique_name: string; author: User },
@@ -66,8 +73,43 @@ export default class ConceptRegisteringConcept {
       author,
       created_at: now,
       updated_at: now,
+      versions: [],
     });
     return { id };
+  }
+
+  /**
+   * addVersion (concept: Concept, version: number, createdAt: DateTime)
+   *
+   * **requires** Concept exists
+   *
+   * **effect** adds version to versions Set
+   */
+  async addVersion(
+    { concept, version, createdAt }: {
+      concept: Concept;
+      version: number;
+      createdAt: Date;
+    },
+  ): Promise<{ ok: boolean } | { error: string }> {
+    const result = await this.concepts.updateOne(
+      { _id: concept },
+      {
+        $push: {
+          versions: {
+            version,
+            createdAt,
+          },
+        },
+        $set: { updated_at: new Date() },
+      },
+    );
+
+    if (result.matchedCount === 0) {
+      return { error: "Concept does not exist" };
+    }
+
+    return { ok: true };
   }
 
   /**
@@ -155,6 +197,23 @@ export default class ConceptRegisteringConcept {
       return [];
     }
     return [{ unique_name: conceptDoc.unique_name }];
+  }
+
+  /**
+   * _getVersions (concept: Item) : (versions: set(version, createdAt))
+   *
+   * **requires** concept exists
+   *
+   * **effects** returns the versions of the concept
+   */
+  async _getVersions(
+    { concept }: { concept: Concept },
+  ): Promise<Array<{ versions: Array<{ version: number; createdAt: Date }> }>> {
+    const conceptDoc = await this.concepts.findOne({ _id: concept });
+    if (!conceptDoc || !conceptDoc.versions) {
+      return [{ versions: [] }];
+    }
+    return [{ versions: conceptDoc.versions }];
   }
 
   /**
