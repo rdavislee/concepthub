@@ -29,13 +29,9 @@ export const PublishRequestNew: Sync = ({
     frames = frames.filter(($) => $[user] !== undefined);
     if (frames.length === 0) return [];
 
-    const checkFrames = await frames.query(ConceptRegistering._getAll, {}, {
-      unique_name,
-      concept,
-    });
+    const checkFrames = await frames.query(ConceptRegistering._lookup, { unique_name }, { id: concept });
     
-    const existing = checkFrames.find(($) => $[unique_name] === frames[0][unique_name]);
-    if (existing) {
+    if (checkFrames.length > 0) {
         return []; // Filter OUT if exists
     }
     
@@ -152,7 +148,7 @@ export const PublishVersionUploadExisting: Sync = ({
 
     // 2. Check if concept exists and get ID using _lookup query
     const originalFrame = frames[0];
-    const lookupFrames = await frames.query(ConceptRegistering._lookup, { unique_name }, { concept });
+    const lookupFrames = await frames.query(ConceptRegistering._lookup, { unique_name }, { id: concept });
     
     if (lookupFrames.length === 0) {
       return []; // Concept does not exist (handled by New flow)
@@ -410,24 +406,19 @@ export const RegistryFilesRequest: Sync = ({
     const originalFrame = frames[0];
     const requestedVersion = originalFrame[version] as number | undefined;
 
-    // Get all concepts and match by unique_name to find concept id
-    let conceptFrames = await frames.query(ConceptRegistering._getAll, {}, {
-      concept,
-      unique_name,
-    });
-    conceptFrames = conceptFrames.filter(($) =>
-      $[unique_name] === originalFrame[unique_name]
-    );
-    if (conceptFrames.length === 0) {
+    // Get concept ID using _lookup query
+    const lookupFrames = await frames.query(ConceptRegistering._lookup, { unique_name }, { id: concept });
+    
+    if (lookupFrames.length === 0) {
       return new Frames({ ...originalFrame, [files_json]: {} });
     }
-    const conceptId = conceptFrames[0][concept];
+    const conceptId = lookupFrames[0][concept];
 
     // Get version to download
     let versionToDownload = requestedVersion;
     if (versionToDownload === undefined) {
         // If no version specified, get the latest one first
-        const latestFrames = await new Frames(conceptFrames[0]).query(ConceptVersioning._get, { concept: conceptId }, { version: version_num });
+        const latestFrames = await new Frames(lookupFrames[0]).query(ConceptVersioning._get, { concept: conceptId }, { version: version_num });
          if (latestFrames.length > 0) {
             versionToDownload = latestFrames[0][version_num] as number;
          } else {

@@ -48,24 +48,19 @@ export const DownloadSpecificVersion: Sync = (
     frames = frames.filter(($) => $[user] !== undefined);
     if (frames.length === 0) return [];
 
-    // Get all concepts and match by unique_name to find concept id
-    let conceptFrames = await frames.query(ConceptRegistering._getAll, {}, {
-      concept,
-      unique_name,
-    });
-    conceptFrames = conceptFrames.filter(($) =>
-      $[unique_name] === originalFrame[unique_name]
-    );
-    if (conceptFrames.length === 0) {
+    // Get concept ID using _lookup query
+    const lookupFrames = await frames.query(ConceptRegistering._lookup, { unique_name }, { id: concept });
+    
+    if (lookupFrames.length === 0) {
       return [];
     }
-    const conceptId = conceptFrames[0][concept];
+    const conceptId = lookupFrames[0][concept];
 
     // Get version to download
     let versionToDownload = requestedVersion;
     if (versionToDownload === undefined) {
       // If no version specified, get the latest one first
-      const latestFrames = await new Frames(conceptFrames[0]).query(
+      const latestFrames = await new Frames(lookupFrames[0]).query(
         ConceptVersioning._get,
         { concept: conceptId },
         { version: version_num },
