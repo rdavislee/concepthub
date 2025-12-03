@@ -262,7 +262,8 @@ export const PublishResponseSuccess: Sync = ({
   when: actions(
     [Requesting.request, { path: "/registry/publish", unique_name }, { request }],
     // Matches ANY successful upload for this request's unique_name context
-    [ConceptVersioning.upload, { concept }, { id: version }],
+    // Note: We rely on ConceptRegistering.addVersion to provide 'concept'
+    [ConceptVersioning.upload, {}, { id: version }],
     [ConceptRegistering.addVersion, { concept }, {}],
   ),
   then: actions([
