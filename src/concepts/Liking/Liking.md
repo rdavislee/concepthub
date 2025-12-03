@@ -9,23 +9,31 @@ A user can like an item once; unlike removes the relation.
 **state (SSF)**
 
 ```
-a set of Likes with
-  an item Item
-  a user Users
-  an at DateTime
+a set of Items with
+  an item ID
+  a set of Likes with
+   a user ID
+   a DateTime
+
+a set of Users with
+  a user ID
+  a set of Likes with
+    an item ID
+    a DateTime
 ```
 
 **actions**
 
-* **like (item: Item, user: Users) : (ok: Flag)**
+* **like (item: itemID, user: userID) : (ok: Flag)**
   requires: no like exists for (item,user)
-  effects: create like with at := now
-* **unlike (item: Item, user: Users) : (ok: Flag)**
+  effects: create like with at := now and adds like to both sets
+* **unlike (item: itemID, user: userID) : (ok: Flag)**
   requires: like exists for (item,user)
-  effects: delete that like
+  effects: delete that like from both sets
 
 **queries**
-`_isLiked(item: Item, user: Users) : (liked: Flag)`
-`_count(item: Item) : (n: Number)`
+`_isLiked(item: itemID, user: userID) : (liked: Flag)`
+`_countForItem(item: itemID) : (n: Number)`
+`_likedItems(user: userID) : (items: Set<itemID>)`
 
 ---

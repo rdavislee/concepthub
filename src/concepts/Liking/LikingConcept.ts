@@ -1,89 +1,156 @@
 import { Collection, Db } from "npm:mongodb";
 import { ID } from "@utils/types.ts";
-import { freshID } from "@utils/database.ts";
 
 // Generic external parameter types
-// Item and User are external; treat them purely as opaque IDs.
+// Liking [Item, User]
 export type Item = ID;
 export type User = ID;
 
-// Internal entity type representing a Like relation
-export type Like = ID;
-
 const PREFIX = "Liking" + ".";
 
-interface LikeDoc {
-  _id: Like; // identity of the like relation
-  item: Item;
-  user: User;
-  at: Date; // timestamp when the like occurred
+// State: a set of Items with an item ID, a set of Likes...
+interface ItemState {
+  _id: Item; // item ID
+  likes: Array<{
+    user: User;
+    at: Date;
+  }>;
+}
+
+// State: a set of Users with a user ID, a set of Likes...
+interface UserState {
+  _id: User; // user ID
+  likes: Array<{
+    item: Item;
+    at: Date;
+  }>;
 }
 
 /**
  * @concept Liking
  * @purpose Let users express a binary preference for items, preventing duplicates and enabling reversals.
  * @principle A user can like an item once; unlike removes the relation.
- * @state a set of Likes with an item Item, a user Users, an at DateTime
+ * @state
+ *  a set of Items with an item ID, a set of Likes
+ *  a set of Users with a user ID, a set of Likes
  */
 export default class LikingConcept {
-  likes: Collection<LikeDoc>;
+  items: Collection<ItemState>;
+  users: Collection<UserState>;
 
   constructor(private readonly db: Db) {
-    this.likes = this.db.collection<LikeDoc>(PREFIX + "likes");
+    this.items = this.db.collection<ItemState>(PREFIX + "items");
+    this.users = this.db.collection<UserState>(PREFIX + "users");
   }
 
   /**
-   * Action: like (item: Item, user: Users) : (ok: Flag) | (error: String)
+   * Action: like (item: itemID, user: userID) : (ok: Flag)
    * requires: no like exists for (item,user)
-   * effects: create like with at := now
+   * effects: create like with at := now and adds like to both sets
    */
   async like(
     { item, user }: { item: Item; user: User },
   ): Promise<{ ok: boolean } | { error: string }> {
-    const existing = await this.likes.findOne({ item, user });
-    if (existing) {
+    // Check if like already exists.
+    const count = await this.users.countDocuments({
+      _id: user,
+      "likes.item": item,
+    });
+
+    if (count > 0) {
       return { error: "Like already exists for this (item,user) pair" };
     }
-    const likeId = freshID() as Like;
-    await this.likes.insertOne({ _id: likeId, item, user, at: new Date() });
+
+    const at = new Date();
+
+    // Add to both sets
+    await Promise.all([
+      this.items.updateOne(
+        { _id: item },
+        { $push: { likes: { user, at } } },
+        { upsert: true },
+      ),
+      this.users.updateOne(
+        { _id: user },
+        { $push: { likes: { item, at } } },
+        { upsert: true },
+      ),
+    ]);
+
     return { ok: true };
   }
 
   /**
-   * Action: unlike (item: Item, user: Users) : (ok: Flag) | (error: String)
+   * Action: unlike (item: itemID, user: userID) : (ok: Flag)
    * requires: like exists for (item,user)
-   * effects: delete that like
+   * effects: delete that like from both sets
    */
   async unlike(
     { item, user }: { item: Item; user: User },
   ): Promise<{ ok: boolean } | { error: string }> {
-    const result = await this.likes.deleteOne({ item, user });
-    if (result.deletedCount === 0) {
+    // Check existence first
+    const count = await this.users.countDocuments({
+      _id: user,
+      "likes.item": item,
+    });
+
+    if (count === 0) {
       return { error: "No existing like to remove for this (item,user) pair" };
     }
+
+    // Remove from both sets
+    await Promise.all([
+      this.items.updateOne(
+        { _id: item },
+        { $pull: { likes: { user: user } } },
+      ),
+      this.users.updateOne(
+        { _id: user },
+        { $pull: { likes: { item: item } } },
+      ),
+    ]);
+
     return { ok: true };
   }
 
   /**
-   * Query: _isLiked(item: Item, user: Users) : (liked: Flag)
-   * returns whether a like exists for (item,user)
+   * Query: _isLiked(item: itemID, user: userID) : (liked: Flag)
    */
   async _isLiked(
     { item, user }: { item: Item; user: User },
   ): Promise<Array<{ liked: boolean }>> {
-    const existing = await this.likes.findOne({ item, user }, { projection: { _id: 1 } });
-    // Query returns an array of one record for consistency with concept query format.
-    return [{ liked: !!existing }];
+    const count = await this.users.countDocuments({
+      _id: user,
+      "likes.item": item,
+    });
+    return [{ liked: count > 0 }];
   }
 
   /**
-   * Query: _count(item: Item) : (n: Number)
-   * returns the number of likes for the given item
+   * Query: _countForItem(item: itemID) : (n: Number)
    */
-  async _count(
+  async _countForItem(
     { item }: { item: Item },
   ): Promise<Array<{ n: number }>> {
-    const n = await this.likes.countDocuments({ item });
+    const doc = await this.items.findOne(
+      { _id: item },
+      { projection: { likes: 1 } },
+    );
+    const n = doc?.likes?.length ?? 0;
     return [{ n }];
+  }
+
+  /**
+   * Query: _likedItems(user: userID) : (items: Set<itemID>)
+   */
+  async _likedItems(
+    { user }: { user: User },
+  ): Promise<Array<{ items: Item[] }>> {
+    const doc = await this.users.findOne(
+      { _id: user },
+      { projection: { likes: 1 } },
+    );
+    const items = doc?.likes?.map((l) => l.item) ?? [];
+    return [{ items }];
   }
 }

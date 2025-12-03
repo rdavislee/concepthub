@@ -1,6 +1,6 @@
 import { assertEquals } from "jsr:@std/assert";
 import { testDb } from "@utils/database.ts";
-import { ID } from "@utils/types.ts"; // imported for potential future explicit typing of returned IDs
+import { ID } from "@utils/types.ts";
 import LikingConcept, { Item, User } from "./LikingConcept.ts";
 
 const userA = "user:Alice" as User;
@@ -15,16 +15,20 @@ Deno.test("Principle: user likes then unlikes an item (binary preference)", asyn
     // Like itemX by userA
     const likeRes = await liking.like({ item: itemX, user: userA });
     assertEquals("ok" in likeRes, true, "First like should succeed");
+    
     // Confirm _isLiked returns true
     const likedArr = await liking._isLiked({ item: itemX, user: userA });
     assertEquals(likedArr.length, 1);
     assertEquals(likedArr[0].liked, true);
+    
     // Attempt duplicate like (should error)
     const dupRes = await liking.like({ item: itemX, user: userA });
     assertEquals("error" in dupRes, true, "Duplicate like should fail");
+    
     // Unlike
     const unlikeRes = await liking.unlike({ item: itemX, user: userA });
     assertEquals("ok" in unlikeRes, true, "Unlike should succeed");
+    
     // Confirm not liked
     const afterUnlike = await liking._isLiked({ item: itemX, user: userA });
     assertEquals(afterUnlike[0].liked, false);
@@ -56,22 +60,54 @@ Deno.test("Action: unlike requires existing like", async () => {
   }
 });
 
-Deno.test("Query _count reflects number of likes", async () => {
+Deno.test("Query: _countForItem reflects number of likes", async () => {
   const [db, client] = await testDb();
   const liking = new LikingConcept(db);
   try {
     // Initially zero
-    const initial = await liking._count({ item: itemX });
+    const initial = await liking._countForItem({ item: itemX });
     assertEquals(initial[0].n, 0);
+    
     // Add two distinct user likes
     await liking.like({ item: itemX, user: userA });
     await liking.like({ item: itemX, user: userB });
-    const after = await liking._count({ item: itemX });
+    const after = await liking._countForItem({ item: itemX });
     assertEquals(after[0].n, 2);
+    
     // Remove one
     await liking.unlike({ item: itemX, user: userA });
-    const finalCount = await liking._count({ item: itemX });
+    const finalCount = await liking._countForItem({ item: itemX });
     assertEquals(finalCount[0].n, 1);
+  } finally {
+    await client.close();
+  }
+});
+
+Deno.test("Query: _likedItems returns set of liked items by user", async () => {
+  const [db, client] = await testDb();
+  const liking = new LikingConcept(db);
+  try {
+    // Initially empty
+    const initial = await liking._likedItems({ user: userA });
+    assertEquals(initial[0].items.length, 0);
+    
+    // User likes two items
+    await liking.like({ item: itemX, user: userA });
+    await liking.like({ item: itemY, user: userA });
+    
+    const after = await liking._likedItems({ user: userA });
+    assertEquals(after[0].items.length, 2);
+    // Check contents (order might vary, so use sort or includes)
+    const items = after[0].items;
+    assertEquals(items.includes(itemX), true);
+    assertEquals(items.includes(itemY), true);
+    
+    // Unlike one
+    await liking.unlike({ item: itemX, user: userA });
+    
+    const final = await liking._likedItems({ user: userA });
+    assertEquals(final[0].items.length, 1);
+    assertEquals(final[0].items[0], itemY);
   } finally {
     await client.close();
   }
