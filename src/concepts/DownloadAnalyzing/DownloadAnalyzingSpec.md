@@ -9,20 +9,18 @@ When a download occurs it is recorded with time and identities; later, aggregate
 **state (SSF)**
 
 ```
-a set of Downloads with
-  a item Item
-  a user Users
-  a at DateTime
+a set of items with
+  a set of Downloads with
+    a userID
+    a DateTime
 ```
 
 **actions**
 
-* **record (item: Item, user: Users, at: DateTime) : (download: Downloads)**
+* **record (item: Item, user: userID, at: DateTime) : (ok: Flag)**
   requires: true
   effects: create download record
 
 **queries**
 `_countForItem(item: Item, from: DateTime, to: DateTime) : (count: Number)`
-`_recentForUser(user: Users) : (download: Downloads)`
-
 ---
