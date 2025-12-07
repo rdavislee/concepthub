@@ -20,8 +20,8 @@ commands:
         list installed concepts
     login
         authenticate with the concept registry
-    install <CONCEPT_NAME>[@<VERSION>]
-        install a concept (version is optional)
+    install <USERNAME>/<CONCEPT_NAME>[@<VERSION>]
+        install a concept from the hub (username required, version optional)
     publish <CONCEPT_NAME>
         publish a concept to the registry
 `;
@@ -54,7 +54,7 @@ switch (command) {
     case "install": {
         const conceptArg = args._[1];
         if (typeof conceptArg !== "string") {
-            console.log("Missing CONCEPT_NAME for install command.");
+            console.log("Missing {USERNAME}/{CONCEPT_NAME} for install command.");
             Deno.exit(1);
         }
         console.log("Command detected: install");
