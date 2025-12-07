@@ -56,3 +56,34 @@ export async function getAccessToken(): Promise<string | undefined> {
   const config = await loadConfig();
   return config.accessToken;
 }
+
+/**
+ * Get stored refresh token
+ */
+export async function getRefreshToken(): Promise<string | undefined> {
+  const config = await loadConfig();
+  return config.refreshToken;
+}
+
+/**
+ * Save access and refresh tokens to config
+ */
+export async function saveTokens(
+  accessToken: string,
+  refreshToken: string,
+): Promise<void> {
+  const config = await loadConfig();
+  config.accessToken = accessToken;
+  config.refreshToken = refreshToken;
+  await saveConfig(config);
+}
+
+/**
+ * Clear stored tokens (for logout)
+ */
+export async function clearTokens(): Promise<void> {
+  const config = await loadConfig();
+  config.accessToken = undefined;
+  config.refreshToken = undefined;
+  await saveConfig(config);
+}
