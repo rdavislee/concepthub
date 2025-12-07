@@ -4,6 +4,7 @@ import {
   ConceptVersioning,
   DownloadAnalyzing,
   Requesting,
+  UserProfileDisplaying,
   UserSessioning,
 } from "@concepts";
 
@@ -18,9 +19,11 @@ export const DownloadSpecificVersion: Sync = (
   {
     request,
     unique_name,
+    author_username,
     concept,
     version,
     user,
+    author,
     files,
     files_json,
     created_at,
@@ -28,12 +31,18 @@ export const DownloadSpecificVersion: Sync = (
     accessToken,
     version_num,
     download_at,
+    username,
   },
 ) => ({
   when: actions(
     [
       Requesting.request,
-      { path: "/concepts/download/version", unique_name, version },
+      {
+        path: "/concepts/download/version",
+        unique_name,
+        author_username,
+        version,
+      },
       { request },
     ],
   ),
@@ -73,6 +82,64 @@ export const DownloadSpecificVersion: Sync = (
       });
     }
     const conceptId = lookupFrames[0][concept];
+
+    // Get the author (user ID) of the concept
+    const authorFrames = await new Frames(lookupFrames[0]).query(
+      ConceptRegistering._getAuthor,
+      { concept: conceptId },
+      { author },
+    );
+
+    if (authorFrames.length === 0) {
+      // Author not found - return frame with error
+      return new Frames({
+        ...originalFrame,
+        [concept]: conceptId,
+        [files_json]: {},
+        [version]: requestedVersion || 0,
+        [user]: authenticatedUser,
+        [download_at]: new Date(),
+      });
+    }
+    const authorUserId = authorFrames[0][author] as string;
+
+    // Get the username of the author
+    const profileFrames = await new Frames(authorFrames[0]).query(
+      UserProfileDisplaying._profileOf,
+      { user: authorUserId },
+      { username },
+    );
+
+    if (profileFrames.length === 0) {
+      // Profile not found - return frame with error
+      return new Frames({
+        ...originalFrame,
+        [concept]: conceptId,
+        [files_json]: {},
+        [version]: requestedVersion || 0,
+        [user]: authenticatedUser,
+        [download_at]: new Date(),
+      });
+    }
+    const authorUsername = profileFrames[0][username] as string;
+
+    // Verify that the author's username matches the requested author_username
+    const requestedAuthorUsername = originalFrame[author_username] as
+      | string
+      | undefined;
+    if (
+      !requestedAuthorUsername || authorUsername !== requestedAuthorUsername
+    ) {
+      // Author username mismatch - return frame with error
+      return new Frames({
+        ...originalFrame,
+        [concept]: conceptId,
+        [files_json]: {},
+        [version]: requestedVersion || 0,
+        [user]: authenticatedUser,
+        [download_at]: new Date(),
+      });
+    }
 
     // Get version to download
     let versionToDownload = requestedVersion;
