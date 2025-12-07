@@ -11,7 +11,8 @@ import {
  * DownloadSpecificVersion
  *
  * When a user requests to download a specific version of a concept,
- * retrieve the files for that version and record the download.
+ * retrieve the files for that version. If authenticated, also record the download.
+ * Authentication is optional - downloads work without authentication but won't be tracked.
  */
 export const DownloadSpecificVersion: Sync = (
   {
@@ -26,12 +27,13 @@ export const DownloadSpecificVersion: Sync = (
     download,
     accessToken,
     version_num,
+    download_at,
   },
 ) => ({
   when: actions(
     [
       Requesting.request,
-      { path: "/concepts/download/version", unique_name, version, accessToken },
+      { path: "/concepts/download/version", unique_name, version },
       { request },
     ],
   ),
@@ -39,20 +41,36 @@ export const DownloadSpecificVersion: Sync = (
     const originalFrame = frames[0];
     const requestedVersion = originalFrame[version] as number | undefined;
 
-    // Authenticate User
-    frames = await frames.query(
-      UserSessioning._getUser,
-      { session: accessToken },
-      { user },
-    );
-    frames = frames.filter(($) => $[user] !== undefined);
-    if (frames.length === 0) return [];
+    // Try to authenticate user if accessToken is provided (optional)
+    let authenticatedUser: string | undefined;
+    const accessTokenValue = originalFrame[accessToken];
+    if (accessTokenValue) {
+      const authFrames = await frames.query(
+        UserSessioning._getUser,
+        { session: accessTokenValue },
+        { user },
+      );
+      const validAuthFrames = authFrames.filter(($) => $[user] !== undefined);
+      if (validAuthFrames.length > 0) {
+        authenticatedUser = validAuthFrames[0][user] as string;
+      }
+    }
 
     // Get concept ID using _lookup query
-    const lookupFrames = await frames.query(ConceptRegistering._lookup, { unique_name }, { id: concept });
-    
+    const lookupFrames = await frames.query(ConceptRegistering._lookup, {
+      unique_name: originalFrame[unique_name],
+    }, { id: concept });
+
     if (lookupFrames.length === 0) {
-      return [];
+      // Concept not found - return frame with error so we can respond
+      // Don't include concept since it doesn't exist
+      return new Frames({
+        ...originalFrame,
+        [files_json]: {},
+        [version]: requestedVersion || 0,
+        [user]: authenticatedUser,
+        [download_at]: new Date(),
+      });
     }
     const conceptId = lookupFrames[0][concept];
 
@@ -68,18 +86,40 @@ export const DownloadSpecificVersion: Sync = (
       if (latestFrames.length > 0) {
         versionToDownload = latestFrames[0][version_num] as number;
       } else {
-        return [];
+        // No versions found - return frame with error so we can respond
+        return new Frames({
+          ...originalFrame,
+          [concept]: conceptId,
+          [files_json]: {},
+          [version]: 0,
+          [user]: authenticatedUser,
+          [download_at]: new Date(),
+        });
       }
     }
 
     // Get the files for the specific version
-    frames = await new Frames({ ...originalFrame, [concept]: conceptId, [user]: frames[0][user] }).query(
+    const downloadFrame = authenticatedUser
+      ? { ...originalFrame, [concept]: conceptId, [user]: authenticatedUser }
+      : { ...originalFrame, [concept]: conceptId };
+
+    frames = await new Frames(downloadFrame).query(
       ConceptVersioning._download,
       { concept: conceptId, version: versionToDownload },
       { files, created_at },
     );
 
-    if (frames.length === 0) return [];
+    if (frames.length === 0) {
+      // Version not found - return frame with error so we can respond
+      return new Frames({
+        ...originalFrame,
+        [concept]: conceptId,
+        [files_json]: {},
+        [version]: versionToDownload,
+        [user]: authenticatedUser,
+        [download_at]: new Date(),
+      });
+    }
 
     // Decode Uint8Array files to UTF-8 strings for response
     const f = frames[0][files] as Map<string, Uint8Array> | undefined;
@@ -97,19 +137,23 @@ export const DownloadSpecificVersion: Sync = (
 
     // Return frame with json files AND correct variables for next steps
     // We need 'files' (the Map) for potential other uses, but 'files_json' for response
-    // We also need 'created_at' for response
+    // We also need 'created_at' for response, and user (always include, even if undefined)
+    // Also set download_at to current time for recording
     return new Frames({
       ...frames[0],
       [files_json]: textFiles,
       [version]: versionToDownload, // Ensure correct version is bound
+      [user]: authenticatedUser, // Always include user (undefined if not authenticated)
+      [download_at]: new Date(), // Set download timestamp here, not in action pattern
     });
   },
   then: actions(
-    // Record the download analysis
-    [DownloadAnalyzing.record, { item: concept, user, at: new Date() }, {
+    // Record download (only if concept exists and user is authenticated)
+    // Note: DownloadAnalyzing.record handles missing user/item gracefully
+    [DownloadAnalyzing.record, { item: concept, user, at: download_at }, {
       download,
     }],
-    // Respond with the files
+    // Always respond with the files (empty if concept/version not found)
     [Requesting.respond, { request, files: files_json, version, created_at }],
   ),
 });

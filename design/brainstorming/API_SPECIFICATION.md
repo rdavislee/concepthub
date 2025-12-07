@@ -4,6 +4,8 @@
 
 This document provides a complete API specification for the ConceptHub backend server. The API is dynamically generated from concept classes found in `src/concepts/`. Each concept exposes its public methods as POST endpoints.
 
+The ConceptHub CLI tool (`conceptual`) provides a command-line interface for interacting with the API. See the CLI section below for details on how CLI commands map to API endpoints.
+
 ## Base Configuration
 
 - **Base URL**: `/api` (configurable via `--baseUrl` flag)
@@ -132,45 +134,46 @@ Query: Returns the number of likes for an item.
 
 ### DownloadAnalyzing
 
-Records and analyzes download events.
+Records and analyzes download events. Downloads are tracked per concept (using the concept ID as the `item`), not per version. Each download record includes the user ID and timestamp for analytics and abuse detection.
 
 #### `POST /api/DownloadAnalyzing/record`
 
-Records a download event.
+Records a download event for an item (typically a concept ID). When users download concept versions via `/concepts/download/version`, the system records the download using the concept ID, not the specific version ID. **Note:** Authentication is optional for concept downloads via `/concepts/download/version` - downloads work without authentication, but are only tracked for analytics when a user is authenticated.
 
 **Request Body:**
 ```json
 {
-  "item": "item123",
+  "item": "concept123",
   "user": "user456",
   "at": "2024-01-15T10:30:00.000Z"
 }
 ```
 
-**Note:** `at` should be a valid ISO 8601 date string.
+**Note:** 
+- `item` should be a valid item ID (typically a concept ID)
+- `user` should be a valid user ID
+- `at` should be a valid ISO 8601 date string or Date object
 
 **Response:**
 ```json
 {
-  "download": "download789"
+  "ok": true
 }
 ```
 
 **Error Responses:**
-- `{ "error": "Missing required fields item, user or at" }` (400)
+- `{ "error": "..." }` (400) - if validation fails
 
 ---
 
 #### `POST /api/DownloadAnalyzing/_countForItem`
 
-Query: Returns the count of downloads for an item within a date range.
+Query: Returns the total count of all downloads for an item (concept). This returns the total count across all time periods - time-based filtering is not currently supported in the implementation.
 
 **Request Body:**
 ```json
 {
-  "item": "item123",
-  "from": "2024-01-01T00:00:00.000Z",
-  "to": "2024-01-31T23:59:59.999Z"
+  "item": "concept123"
 }
 ```
 
@@ -183,32 +186,62 @@ Query: Returns the count of downloads for an item within a date range.
 ]
 ```
 
+**Note:** Returns `[{ count: 0 }]` if the item has no downloads or doesn't exist.
+
 ---
 
-#### `POST /api/DownloadAnalyzing/_recentForUser`
+#### `POST /api/concepts/download/version`
 
-Query: Returns recent downloads for a user.
+Downloads a specific version of a concept by unique name. If no version is specified, downloads the latest version. **Authentication is optional** - downloads work without authentication, but downloads are only tracked for analytics when a user is authenticated.
+
+**Headers:**
+- `Authorization: Bearer <accessToken>` (optional)
+- `Content-Type: application/json`
 
 **Request Body:**
 ```json
 {
-  "user": "user456",
-  "limit": 25
+  "unique_name": "username/MyConcept",
+  "version": 2
 }
 ```
 
-**Note:** `limit` is optional and defaults to 25.
+**Note:**
+- `unique_name` (string, required): The unique name of the concept to download. Can be in the format `username/concept_name` (e.g., `"johndoe/MyConcept"`) or just `concept_name` if the concept is globally unique. The CLI tool uses the `username/concept_name` format.
+- `version` (number, optional): The specific version number to download. If omitted, downloads the latest version. Version numbers are integers (e.g., `1`, `2`, `10`).
+- Authentication is **optional** - if a valid Bearer token is provided, the download will be tracked in DownloadAnalyzing for analytics. Without authentication, the download still works but is not tracked.
+- Downloads are recorded per concept (using the concept ID), not per version
+- Files are returned as decoded UTF-8 strings when possible, or base64-encoded for binary files
 
 **Response:**
 ```json
-[
-  {
-    "download": "download789"
+{
+  "files": {
+    "src/index.ts": "export default function...",
+    "README.md": "# My Concept\n\n..."
   },
-  {
-    "download": "download788"
-  }
-]
+  "version": 2,
+  "created_at": "2024-01-15T10:30:00.000Z"
+}
+```
+
+**Error Responses:**
+- `{ "error": "..." }` (404) - Concept or version not found
+- Timeout errors (504) if the sync fails to respond within the timeout period
+- `{ "error": "Invalid token signature" }` (401)
+- `{ "error": "Session not found or revoked" }` (401)
+- `{ "error": "Invalid access token" }` (401)
+- Concept not found or version not found errors (typically returns empty response or error)
+
+**Example using curl:**
+```bash
+curl -X POST http://localhost:8000/api/concepts/download/version \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "unique_name": "MyConcept",
+    "version": 2
+  }'
 ```
 
 ---
@@ -305,7 +338,7 @@ High-level endpoints for managing concepts and their versions.
 
 #### `POST /api/registry/publish`
 
-Creates a new concept with a unique name and publishes its first version (version 1). This endpoint combines concept registration and version upload into a single operation. Requires authentication.
+Creates a new concept with a unique name and publishes its first version (version 1), or publishes a new version of an existing concept. This endpoint combines concept registration and version upload into a single operation. Requires authentication.
 
 **Headers:**
 - `Authorization: Bearer <accessToken>` (required)
@@ -316,19 +349,21 @@ Creates a new concept with a unique name and publishes its first version (versio
 {
   "unique_name": "MyNewConcept",
   "files": {
-    "src/index.ts": [/* Uint8Array as array of numbers */],
-    "README.md": [/* Uint8Array as array of numbers */]
+    "design/concepts/MyNewConcept/MyNewConcept.md": [/* Uint8Array as array of numbers */],
+    "src/concepts/MyNewConcept/MyNewConceptConcept.ts": [/* Uint8Array as array of numbers */],
+    "src/concepts/MyNewConcept/MyNewConceptConcept.test.ts": [/* Uint8Array as array of numbers */]
   }
 }
 ```
 
 **Note:**
-- `unique_name` (string, required): A unique name for the concept. Must not already exist.
-- `files` (object, required): A map where keys are file paths (e.g., "src/index.ts", "README.md") and values are file contents as arrays of numbers representing Uint8Array bytes
+- `unique_name` (string, required): A unique name for the concept. The concept name should match the directory name in the workspace structure. If the concept already exists, this endpoint will publish a new version (incrementing from the previous version).
+- `files` (object, required): A map where keys are file paths relative to the workspace root (e.g., `"design/concepts/MyConcept/MyConcept.md"`, `"src/concepts/MyConcept/MyConceptConcept.ts"`, `"src/concepts/MyConcept/MyConceptConcept.test.ts"`) and values are file contents as arrays of numbers representing Uint8Array bytes
 - When sent as JSON, `files` should be an object with string keys and array-of-numbers values (e.g., `{"path/to/file.txt": [104, 101, 108, 108, 111]}`)
 - Authentication is provided via the `Authorization` header with a Bearer token
 - The user extracted from the access token becomes the author of the concept
-- This endpoint automatically creates version 1 of the concept
+- For new concepts, this endpoint automatically creates version 1
+- For existing concepts, this endpoint increments the version number and publishes the new version
 
 **Response:**
 ```json
@@ -764,6 +799,149 @@ curl -X POST http://localhost:8000/api/Liking/like \
     "item": "item123",
     "user": "user456"
   }'
+```
+
+---
+
+## CLI Tool Integration
+
+The ConceptHub CLI tool (`conceptual`) provides a command-line interface for interacting with the API. The CLI handles authentication, file management, and versioning automatically.
+
+### CLI Commands and API Mapping
+
+#### `conceptual login`
+
+Authenticates the user with the concept hub by prompting for email and password. Stores credentials locally for use in subsequent commands.
+
+**API Endpoint:** `POST /api/auth/login`
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "securepassword123"
+}
+```
+
+**Response:**
+```json
+{
+  "user": "user123",
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+The CLI stores the access token locally and uses it for authenticated requests.
+
+---
+
+#### `conceptual install {USERNAME}/{CONCEPT_NAME}@{VERSION}`
+
+Downloads a concept from the hub and installs it in the local workspace. The username is required, and the version is optional (defaults to latest).
+
+**API Endpoint:** `POST /api/concepts/download/version`
+
+**Request:**
+- Constructs `unique_name` from `{USERNAME}/{CONCEPT_NAME}` format
+- Sends version number if specified (integer only, e.g., `1`, `2`, `10`)
+- Uses stored access token from `conceptual login` for authentication
+
+**Response Processing:**
+- Receives files as a map of file paths to file contents
+- Places files in the correct workspace locations:
+  - Specification: `design/concepts/{CONCEPT_NAME}/{CONCEPT_NAME}.md`
+  - Implementation: `src/concepts/{CONCEPT_NAME}/{CONCEPT_NAME}Concept.ts`
+  - Test: `src/concepts/{CONCEPT_NAME}/{CONCEPT_NAME}Concept.test.ts`
+
+**Example:**
+```bash
+conceptual install johndoe/MyConcept@1
+# Downloads version 1 of MyConcept by user johndoe
+```
+
+---
+
+#### `conceptual publish {CONCEPT_NAME}`
+
+Publishes a concept from the local workspace to the hub. The concept must be complete (all three required files must exist).
+
+**API Endpoint:** `POST /api/registry/publish`
+
+**Pre-flight Checks:**
+- Validates that all three required files exist locally:
+  - `design/concepts/{CONCEPT_NAME}/{CONCEPT_NAME}.md`
+  - `src/concepts/{CONCEPT_NAME}/{CONCEPT_NAME}Concept.ts`
+  - `src/concepts/{CONCEPT_NAME}/{CONCEPT_NAME}Concept.test.ts`
+
+**Request:**
+- Reads the three files from the local workspace
+- Converts file contents to Uint8Array format (array of numbers)
+- Constructs `files` object with workspace-relative paths
+- Uses stored access token from `conceptual login` for authentication
+- Sets `unique_name` to `{CONCEPT_NAME}`
+
+**Version Handling:**
+- For new concepts: API automatically creates version 1
+- For existing concepts: API increments the previous version and publishes the new version
+
+**Example:**
+```bash
+conceptual publish MyConcept
+# Publishes MyConcept (creates version 1 if new, or increments version if exists)
+```
+
+---
+
+#### `conceptual list`
+
+Lists all concepts found in the local workspace, categorizing them as complete or incomplete. This command does not interact with the API; it only scans the local filesystem.
+
+**No API Endpoint** - Local operation only
+
+**Output:**
+- Lists completed concepts (all three files present)
+- Lists incomplete concepts (missing files indicated)
+
+---
+
+#### `conceptual init`
+
+Initializes a new conceptual project in the current workspace. This command sets up the workspace structure but does not interact with the API.
+
+**No API Endpoint** - Local operation only
+
+---
+
+### Authentication Flow
+
+1. User runs `conceptual login` and provides email/password
+2. CLI calls `POST /api/auth/login` and receives access/refresh tokens
+3. CLI stores tokens locally (typically in a config file or secure storage)
+4. Subsequent authenticated commands (`install`, `publish`) use the stored access token
+5. If the access token expires, the CLI may automatically refresh using the stored refresh token
+
+### File Format
+
+When publishing or installing concepts, files are transmitted as:
+- **Request (publish):** Files are converted to Uint8Array and sent as arrays of numbers in JSON
+- **Response (install):** Files are returned as decoded UTF-8 strings when possible, or base64-encoded for binary files
+
+### Workspace Structure
+
+The CLI expects and maintains the following workspace structure:
+
+```
+workspace/
+├── design/
+│   └── concepts/
+│       └── {CONCEPT_NAME}/
+│           └── {CONCEPT_NAME}.md
+└── src/
+    └── concepts/
+        └── {CONCEPT_NAME}/
+            ├── {CONCEPT_NAME}Concept.ts
+            └── {CONCEPT_NAME}Concept.test.ts
 ```
 
 ---

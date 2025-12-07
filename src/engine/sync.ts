@@ -215,11 +215,12 @@ export class SyncConcept {
       let matchedValue = value;
       if (typeof value === "symbol") {
         matchedValue = frame[value];
-        if (matchedValue === undefined) {
-          throw new Error(
-            `Missing binding: ${String(value)} in frame: ${frame}`,
-          );
-        }
+        // Allow undefined values - let the action handle them (useful for optional parameters)
+        // if (matchedValue === undefined) {
+        //   throw new Error(
+        //     `Missing binding: ${String(value)} in frame: ${frame}`,
+        //   );
+        // }
       }
       return [key, matchedValue];
     });

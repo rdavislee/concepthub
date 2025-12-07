@@ -34,13 +34,22 @@ export default class DownloadAnalyzingConcept {
   }
 
   /**
-   * Action: record (item: Item, user: userID, at: DateTime) : (ok: Flag)
+   * Action: record (item: Item, user?: userID, at: DateTime) : (ok: Flag)
    * requires: true
-   * effects: create download record
+   * effects: create download record (only if user is provided)
    */
   async record(
-    { item, user, at }: { item: Item; user: User; at: Date },
+    { item, user, at }: { item?: Item; user?: User; at: Date },
   ): Promise<{ ok: boolean } | { error: string }> {
+    // Skip recording if no item provided (concept not found)
+    if (!item) {
+      return { ok: true };
+    }
+    // Skip recording if no user provided (anonymous/unauthenticated downloads)
+    if (!user) {
+      return { ok: true };
+    }
+
     await this.items.updateOne(
       { _id: item },
       { $push: { downloads: { user, at } } },
