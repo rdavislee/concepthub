@@ -6,9 +6,9 @@ import { install } from "./commands/install.ts";
 import { publish } from "./commands/publish.ts";
 
 const args = parseArgs(Deno.args, {
-    alias: {
-        help: "h",
-    },
+  alias: {
+    help: "h",
+  },
 });
 
 const helpMessage = `
@@ -27,54 +27,51 @@ commands:
 `;
 
 if (args.help) {
-    console.log(helpMessage);
-    Deno.exit();
+  console.log(helpMessage);
+  Deno.exit();
 }
 
 const command = args._[0];
 
 if (typeof command !== "string") {
-    console.log("Missing command. Use options -h or --help for valid options.");
-    Deno.exit(1);
+  console.log("Missing command. Use options -h or --help for valid options.");
+  Deno.exit(1);
 }
 
 switch (command) {
-    case "init":
-        console.log("Command detected: init");
-        await init();
-        break;
-    case "list":
-        console.log("Command detected: list");
-        await list();
-        break;
-    case "login":
-        console.log("Command detected: login");
-        await login();
-        break;
-    case "install": {
-        const conceptArg = args._[1];
-        if (typeof conceptArg !== "string") {
-            console.log("Missing {USERNAME}/{CONCEPT_NAME} for install command.");
-            Deno.exit(1);
-        }
-        console.log("Command detected: install");
-        await install(conceptArg);
-        break;
+  case "init":
+    console.log("Command detected: init");
+    await init();
+    break;
+  case "list":
+    await list();
+    break;
+  case "login":
+    console.log("Command detected: login");
+    await login();
+    break;
+  case "install": {
+    const conceptArg = args._[1];
+    if (typeof conceptArg !== "string") {
+      console.log("Missing {USERNAME}/{CONCEPT_NAME} for install command.");
+      Deno.exit(1);
     }
-    case "publish": {
-        const conceptName = args._[1];
-        if (typeof conceptName !== "string") {
-            console.log("Missing CONCEPT_NAME for publish command.");
-            Deno.exit(1);
-        }
-        console.log("Command detected: publish");
-        await publish(conceptName);
-        break;
+    await install(conceptArg);
+    break;
+  }
+  case "publish": {
+    const conceptName = args._[1];
+    if (typeof conceptName !== "string") {
+      console.log("Missing CONCEPT_NAME for publish command.");
+      Deno.exit(1);
     }
-    default:
-        console.log(
-            "Unknown command. Use options -h or --help for valid options.",
-        );
-        Deno.exit(1);
+    console.log("Command detected: publish");
+    await publish(conceptName);
+    break;
+  }
+  default:
+    console.log(
+      "Unknown command. Use options -h or --help for valid options.",
+    );
+    Deno.exit(1);
 }
-
