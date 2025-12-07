@@ -47,7 +47,6 @@ switch (command) {
     await list();
     break;
   case "login":
-    console.log("Command detected: login");
     await login();
     break;
   case "install": {
@@ -65,7 +64,6 @@ switch (command) {
       console.log("Missing CONCEPT_NAME for publish command.");
       Deno.exit(1);
     }
-    console.log("Command detected: publish");
     await publish(conceptName);
     break;
   }
