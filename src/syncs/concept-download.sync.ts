@@ -41,14 +41,21 @@ export const DownloadSpecificVersion: Sync = (
         path: "/concepts/download/version",
         unique_name,
         author_username,
-        version,
       },
       { request },
     ],
   ),
   where: async (frames) => {
     const originalFrame = frames[0];
-    const requestedVersion = originalFrame[version] as number | undefined;
+    // version is optional in the request, so it might be undefined if not provided
+    const requestedVersion = originalFrame[version] as
+      | number
+      | undefined
+      | null;
+    // Normalize null to undefined
+    const normalizedVersion = requestedVersion === null
+      ? undefined
+      : requestedVersion;
 
     // Try to authenticate user if accessToken is provided (optional)
     let authenticatedUser: string | undefined;
@@ -76,7 +83,7 @@ export const DownloadSpecificVersion: Sync = (
       return new Frames({
         ...originalFrame,
         [files_json]: {},
-        [version]: requestedVersion || 0,
+        [version]: normalizedVersion || 0,
         [user]: authenticatedUser,
         [download_at]: new Date(),
       });
@@ -96,7 +103,7 @@ export const DownloadSpecificVersion: Sync = (
         ...originalFrame,
         [concept]: conceptId,
         [files_json]: {},
-        [version]: requestedVersion || 0,
+        [version]: normalizedVersion || 0,
         [user]: authenticatedUser,
         [download_at]: new Date(),
       });
@@ -116,7 +123,7 @@ export const DownloadSpecificVersion: Sync = (
         ...originalFrame,
         [concept]: conceptId,
         [files_json]: {},
-        [version]: requestedVersion || 0,
+        [version]: normalizedVersion || 0,
         [user]: authenticatedUser,
         [download_at]: new Date(),
       });
@@ -135,14 +142,14 @@ export const DownloadSpecificVersion: Sync = (
         ...originalFrame,
         [concept]: conceptId,
         [files_json]: {},
-        [version]: requestedVersion || 0,
+        [version]: normalizedVersion || 0,
         [user]: authenticatedUser,
         [download_at]: new Date(),
       });
     }
 
     // Get version to download
-    let versionToDownload = requestedVersion;
+    let versionToDownload = normalizedVersion;
     if (versionToDownload === undefined) {
       // If no version specified, get the latest one first
       const latestFrames = await new Frames(lookupFrames[0]).query(
