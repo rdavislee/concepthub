@@ -63,17 +63,19 @@ The `.env` file is automatically loaded by the application using Deno's dotenv s
 
 ### Generate Imports
 
-Before running the server or tests, generate the required imports:
+Before running the server or tests, generate the required imports. This task scans the `src/concepts/` directory and generates the necessary import files (`concepts.ts` and `test_concepts.ts`) that register all concept classes:
 
 ```bash
 deno task import
 ```
 
-Or use the build task:
+Or use the build task (which is an alias for import):
 
 ```bash
 deno task build
 ```
+
+**Note:** You must run this command whenever you add, remove, or rename concept files.
 
 ## Running the Server
 
@@ -81,11 +83,13 @@ deno task build
 
 ### Main Application Server
 
-Start the main application server (with concepts and synchronizations):
+Start the main application server (with concepts and synchronizations). This runs the full ConceptHub application with all concepts and sync operations:
 
 ```bash
 deno task start
 ```
+
+This command starts the server with all necessary permissions for network access, file I/O, system operations, and environment variable access.
 
 ### Concept Server
 
@@ -121,4 +125,50 @@ To run engine tests:
 
 ```bash
 deno test --allow-net --allow-read --allow-write --allow-sys --allow-env src/engine/test/run.ts
+```
+
+## Conceptual CLI
+
+The Conceptual CLI (`conceptual`) is a command-line tool for interacting with the ConceptHub registry. It allows you to manage concepts locally and publish them to the hub.
+
+### Compile Conceptual CLI
+
+To create a convenient binary, run the following command from the root of the directory:
+
+```bash
+deno compile -A --output conceptual .conceptual/conceptual.ts
+```
+
+This creates a standalone executable named `conceptual` that can be run directly without Deno installed.
+
+### CLI Commands
+
+#### `conceptual init`
+
+Initializes a new conceptual project in the current workspace. Sets up the workspace structure for concept development.
+
+#### `conceptual list`
+
+Lists all concepts found in the local workspace. Scans `design/concepts/` and `src/concepts/` directories and categorizes concepts as complete (all three required files present) or incomplete (missing files).
+
+#### `conceptual login`
+
+Authenticates with the ConceptHub registry. Prompts for email and password, then stores authentication tokens locally for use in subsequent commands. Required before publishing concepts.
+
+#### `conceptual install {USERNAME}/{CONCEPT_NAME}@{VERSION}`
+
+Installs a concept from the hub to the local workspace. Downloads the specification, implementation, and test files and places them in the correct workspace locations. Version is optional (defaults to latest).
+
+**Example:**
+```bash
+conceptual install johndoe/MyConcept@1
+```
+
+#### `conceptual publish {CONCEPT_NAME}`
+
+Publishes a concept from the local workspace to the hub. Validates that all three required files exist, then uploads them. Requires authentication (run `conceptual login` first). Automatically creates version 1 for new concepts or increments the version for existing concepts.
+
+**Example:**
+```bash
+conceptual publish MyConcept
 ```
