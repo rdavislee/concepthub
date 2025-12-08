@@ -4,7 +4,7 @@ import { ID } from "@utils/types.ts";
 // Generic external parameter types
 // DownloadAnalyzing [Item, User]
 export type Item = ID;
-export type User = ID;
+export type User = ID | "anonymous";
 
 const PREFIX = "DownloadAnalyzing" + ".";
 
@@ -36,7 +36,7 @@ export default class DownloadAnalyzingConcept {
   /**
    * Action: record (item: Item, user?: userID, at: DateTime) : (ok: Flag)
    * requires: true
-   * effects: create download record (only if user is provided)
+   * effects: create download record; if user is not provided, record as anonymous
    */
   async record(
     { item, user, at }: { item?: Item; user?: User; at: Date },
@@ -45,14 +45,12 @@ export default class DownloadAnalyzingConcept {
     if (!item) {
       return { ok: true };
     }
-    // Skip recording if no user provided (anonymous/unauthenticated downloads)
-    if (!user) {
-      return { ok: true };
-    }
+    // Use a sentinel for anonymous/unauthenticated downloads
+    const recordedUser: User = user ?? "anonymous";
 
     await this.items.updateOne(
       { _id: item },
-      { $push: { downloads: { user, at } } },
+      { $push: { downloads: { user: recordedUser, at } } },
       { upsert: true },
     );
     return { ok: true };
@@ -62,7 +60,7 @@ export default class DownloadAnalyzingConcept {
    * Query: _countForItem(item: Item) : (count: Number)
    */
   async _countForItem(
-    { item }: { item: Item },
+    { item, from, to }: { item: Item; from?: Date; to?: Date },
   ): Promise<Array<{ count: number }>> {
     const doc = await this.items.findOne(
       { _id: item },
@@ -73,6 +71,14 @@ export default class DownloadAnalyzingConcept {
       return [{ count: 0 }];
     }
 
-    return [{ count: doc.downloads.length }];
+    // If no window provided, return total
+    if (!from && !to) {
+      return [{ count: doc.downloads.length }];
+    }
+
+    const start = from ?? new Date(-8640000000000000); // min date
+    const end = to ?? new Date(8640000000000000); // max date
+    const inWindow = doc.downloads.filter((d) => d.at >= start && d.at <= end);
+    return [{ count: inWindow.length }];
   }
 }
