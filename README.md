@@ -4,7 +4,7 @@ A concise repository for the ConceptHub project.
 
 ## User Testing
 
-- [usertesting.md](./usertesting.md)
+- [usertesting.md](./UserTesting.md)
 
 ## Project framing
 
