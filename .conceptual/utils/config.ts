@@ -19,7 +19,8 @@ export function getApiUrl(): string {
     return envUrl;
   }
   // Default to localhost:8000
-  return "http://localhost:8000";
+  return "https://concepthub-backend.onrender.com";
+  // return "http://localhost:8000";
 }
 
 /**

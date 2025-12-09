@@ -143,19 +143,19 @@ This creates a standalone executable named `conceptual` that can be run directly
 
 ### CLI Commands
 
-#### `conceptual init`
+#### `./conceptual init`
 
 Initializes a new conceptual project in the current workspace. Sets up the workspace structure for concept development.
 
-#### `conceptual list`
+#### `./conceptual list`
 
 Lists all concepts found in the local workspace. Scans `design/concepts/` and `src/concepts/` directories and categorizes concepts as complete (all three required files present) or incomplete (missing files).
 
-#### `conceptual login`
+#### `./conceptual login`
 
 Authenticates with the ConceptHub registry. Prompts for email and password, then stores authentication tokens locally for use in subsequent commands. Required before publishing concepts.
 
-#### `conceptual install {USERNAME}/{CONCEPT_NAME}@{VERSION}`
+#### `./conceptual install {USERNAME}/{CONCEPT_NAME}@{VERSION}`
 
 Installs a concept from the hub to the local workspace. Downloads the specification, implementation, and test files and places them in the correct workspace locations. Version is optional (defaults to latest).
 
@@ -164,7 +164,7 @@ Installs a concept from the hub to the local workspace. Downloads the specificat
 conceptual install johndoe/MyConcept@1
 ```
 
-#### `conceptual publish {CONCEPT_NAME}`
+#### `./conceptual publish {CONCEPT_NAME}`
 
 Publishes a concept from the local workspace to the hub. Validates that all three required files exist, then uploads them. Requires authentication (run `conceptual login` first). Automatically creates version 1 for new concepts or increments the version for existing concepts.
 
