@@ -7,7 +7,7 @@ I had overall a great experience with creating a full-stack website in a group. 
 Building Conceptual was a fantastic opportunity to see how modular concepts come together to power a large-scale application. Collaborating closely with Anthony, Emiliano, and Terry gave me great insight into effective teamwork and the pace required to ship quality software quickly. I learned a lot about the nuances of integrating different system parts and maintaining velocity in a group environment. I also deepened my understanding of concepts and syncs and genuinely feel capable of building any website. I'm thrilled with our final product and the skills I've gained throughout this process; it’s been a rewarding experience seeing our ambitious ideas come to life.
 
 ## Emiliano's Reflection:
-
+Building Conceptual was a really worthwhile experience and getting to create a tool that builds on the concepts and syncs framework from class made the material feel a lot more concrete, and it was cool to see how those ideas could scale into something more ambitious than a typical assignment. Working on a project with this much flexibility also taught me a lot about how to shape an idea into an actual product, especially when there are many possible directions to go and only so much time to build. Collaborating with the team made the process even better, since everyone brought different strengths and perspectives to the table. Seeing the project evolve from an abstract idea into something people could actually interact with was satisfying, and the whole experience helped me understand the design principles from class on a deeper level.
 
 
 ## Terry's Reflection:
