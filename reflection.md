@@ -4,7 +4,7 @@ I had overall a great experience with creating a full-stack website in a group. 
 
 ## Davis's Reflection
 
-
+Building Conceptual was a fantastic opportunity to see how modular concepts come together to power a large-scale application. Collaborating closely with Anthony, Emiliano, and Terry gave me great insight into effective teamwork and the pace required to ship quality software quickly. I learned a lot about the nuances of integrating different system parts and maintaining velocity in a group environment. I also deepened my understanding of concepts and syncs and genuinely feel capable of building any website. I'm thrilled with our final product and the skills I've gained throughout this process; it’s been a rewarding experience seeing our ambitious ideas come to life.
 
 ## Emiliano's Reflection:
 
