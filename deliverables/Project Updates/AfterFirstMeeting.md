@@ -1,25 +1,57 @@
-# Week One Updates (11/13-11/18)
+## Week One Updates
 
-## Accomplishments
+Date: 2025-11-13 to 2025-11-18
 
-Project Pitch Video - We met as a group on 11/15 to go through logistics of the project and discussed the concepts we wanted our project to have. We curated a script and decided on a name for our project.
+### First Meeting (Thu 11/13)
 
-Concepts - We discussed what was the best way to count downloads and upvotes and decided it was best to have a separate concept for both. We also discussed that we will have a concept database concept that holds the concepts and a display concept that will act as the components that are displayed. We will also have the usual authenticate and user profile concepts.
+#### Email Feedback
+- Identify the MVP: focus on the bare minimum useful subset of features.
+- Adoption story: consider developer audience and ease of integration.
+	- Decide on persistent storage (MongoDB vs. Postgres/Supabase/Firebase) or ship code bundles.
+	- Study comparables for modular functionality adoption (e.g., shadcn).
+- Killer app: authentication as a modular solution (see better-auth: https://www.better-auth.com/).
+	- Prepare a compelling demo that proves modularity and real value.
 
-FrontEnd - We created a basic front end to demo on our video
+#### Meeting Notes
+- Main concern: scoping. Too many features; prioritize.
+- Goal: make it usable for classmates to share concepts at semester end.
+- Ideas:
+	- One repo per concept.
+	- Deno can import from HTTP.
+	- Store artifacts (specs/knowledge) without code; link to implementations.
+	- Consider importing a running instance instead of code for deployment.
+- Positioning:
+	- Developer user journey; articulate clear pitch/value.
+	- Differentiate via killer apps.
+- Hosting might be separate.
+- Syncs:
+	- Few concepts + syncs form a mini application.
+	- Repo types: concepts and applications (concepts + syncs).
+	- Rename “applications” to workflows/components/behaviors.
+- RDF/naming:
+	- Naming everything is out of scope; reference RDF/JSON-LD mapping ideas.
+- MVP plan:
+	- Use a Google Form to collect repos → automate concept/sync extraction.
+	- 19 teams; be framework-flexible (not just MongoDB).
 
-MVP - We came up with what our website will look like minimally
+#### Immediate TODOs
+- Decide on scope.
+- Figure out import flow.
 
-## Notes
+### Accomplishments
+- Project pitch video: met on 11/15, planned logistics, curated script, named the project.
+- Concepts: separated download counting and liking; have concept DB and display concept; include auth and user profile concepts.
+- Frontend: basic demo UI created.
+- MVP: defined minimal website functionality.
 
-We noted that we can go through the 6104 backend forks to get everyone's projects so there is no need for the google form anymore.
+### Notes
+- We can pull 6104 backend forks directly; no Google Form needed.
 
-## TODOS:
-
-- Problem Framing Revision (IF NEEDED)
-- Concept Design
-- User Journey
-- UI Sketches (We already have a frontend but could add additional UI Sketches)
-- Visual Design Study (Discuss what colors inspire us)
-- Design Summary
-- Development Plan
+### Next Tasks
+- Problem Framing revision (if needed).
+- Concept Design.
+- User Journey.
+- UI Sketches (expand beyond current frontend).
+- Visual Design Study (color inspirations).
+- Design Summary.
+- Development Plan.

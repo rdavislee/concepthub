@@ -16,6 +16,16 @@ See the full plan, goals, scope, and setup in:
 
 Functional Design is a separate folder in the repo
 
+## Documents
+
+- Reflection: [reflection.md](./reflection.md)
+- Design Evolution Summary: [new_design_summary.md](./deliverables/new_design_summary.md)
+- Project Updates:
+   - First Meeting: [AfterFirstMeeting.md](./deliverables/Project%20Updates/AfterFirstMeeting.md)
+   - Second Meeting: [AfterSecondMeeting.md](./deliverables/Project%20Updates/AfterSecondMeeting.md)
+   - Third Meeting: [AfterThirdMeeting.md](./deliverables/Project%20Updates/AfterThirdMeeting.md)
+   - Fourth Meeting: [AfterFourthMeeting.md](./deliverables/Project%20Updates/AfterFourthMeeting.md)
+
 ## Quick Start
 
 1. Set up environment variables:
