@@ -31,7 +31,7 @@ Date: 2025-11-25
 - Deliverable:
 	- Screen record alpha user journey.
 
-### Owners
+### TODOS
 - Davis & Emilliano: ConceptRegistry concept and syncs.
 - Terry: Backend ↔ frontend integration via API endpoints; verify ConceptRegistry; record user journey and submit.
 

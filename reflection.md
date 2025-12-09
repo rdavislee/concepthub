@@ -1,0 +1,13 @@
+## Anthony's Reflection
+
+I had overall a great experience with creating a full-stack website in a group. I learned that website design isn't as intuitive and easy as I thought and learned about good system design practices such as authentication and sessioning. I also learned how to code side by side with a teammate and how front end to back end updating is easier with two people. I also learned how to manage time and how to determine which features are prioritized and more important. This was my first group project where we could do anything we wanted with minimum pushback so we could be as ambitious as we wanted, which is very ambitious. Overall I am happy with the MVP of a website that we as a group think can change the world and I am excited to see what the future holds for Conceptual.
+
+## Davis's Reflection
+
+
+
+## Emiliano's Reflection:
+
+
+
+## Terry's Reflection:

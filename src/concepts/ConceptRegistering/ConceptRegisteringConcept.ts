@@ -240,13 +240,15 @@ export default class ConceptRegisteringConcept {
    *
    * **effects** returns all registered concepts with their details
    */
-  async _getAll(): Promise<Array<{
-    concept: Concept;
-    unique_name: string;
-    author: User;
-    created_at: Date;
-    updated_at: Date;
-  }>> {
+  async _getAll(): Promise<
+    Array<{
+      concept: Concept;
+      unique_name: string;
+      author: User;
+      created_at: Date;
+      updated_at: Date;
+    }>
+  > {
     const conceptDocs = await this.concepts.find({}).toArray();
     return conceptDocs.map((doc) => ({
       concept: doc._id,
@@ -255,28 +257,5 @@ export default class ConceptRegisteringConcept {
       created_at: doc.created_at,
       updated_at: doc.updated_at,
     }));
-  }
-
-  /**
-   * _getAllWithLatestVersionDate () : (concept: Concepts, unique_name: String, latest_version_date: DateTime)
-   *
-   * Returns all concepts with the latest version date, if any.
-   */
-  async _getAllWithLatestVersionDate(): Promise<Array<{
-    concept: Concept;
-    unique_name: string;
-    latest_version_date: Date | null;
-  }>> {
-    const conceptDocs = await this.concepts.find({}).toArray();
-    return conceptDocs.map((doc) => {
-      const latest = doc.versions && doc.versions.length
-        ? doc.versions.reduce((a, b) => (a.createdAt > b.createdAt ? a : b)).createdAt
-        : null;
-      return {
-        concept: doc._id,
-        unique_name: doc.unique_name,
-        latest_version_date: latest,
-      };
-    });
   }
 }
