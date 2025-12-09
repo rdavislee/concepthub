@@ -256,4 +256,27 @@ export default class ConceptRegisteringConcept {
       updated_at: doc.updated_at,
     }));
   }
+
+  /**
+   * _getAllWithLatestVersionDate () : (concept: Concepts, unique_name: String, latest_version_date: DateTime)
+   *
+   * Returns all concepts with the latest version date, if any.
+   */
+  async _getAllWithLatestVersionDate(): Promise<Array<{
+    concept: Concept;
+    unique_name: string;
+    latest_version_date: Date | null;
+  }>> {
+    const conceptDocs = await this.concepts.find({}).toArray();
+    return conceptDocs.map((doc) => {
+      const latest = doc.versions && doc.versions.length
+        ? doc.versions.reduce((a, b) => (a.createdAt > b.createdAt ? a : b)).createdAt
+        : null;
+      return {
+        concept: doc._id,
+        unique_name: doc.unique_name,
+        latest_version_date: latest,
+      };
+    });
+  }
 }

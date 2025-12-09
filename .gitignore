@@ -8,3 +8,4 @@ src/concepts/concepts.ts
 src/concepts/test_concepts.ts
 src/syncs/syncs.ts
 .conceptual/config.json
+conceptual

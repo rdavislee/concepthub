@@ -25,16 +25,18 @@ export const PublishRequestNew: Sync = ({
     frames = await frames.query(UserSessioning._getUser, {
       session: accessToken,
     }, { user });
-    
-    frames = frames.filter(($) => $[user] !== undefined);
-    if (frames.length === 0) return [];
 
-    const checkFrames = await frames.query(ConceptRegistering._lookup, { unique_name }, { id: concept });
-    
+    frames = frames.filter(($) => $[user] !== undefined);
+    if (frames.length === 0) return new Frames();
+
+    const checkFrames = await frames.query(ConceptRegistering._lookup, {
+      unique_name,
+    }, { id: concept });
+
     if (checkFrames.length > 0) {
-        return []; // Filter OUT if exists
+      return new Frames(); // Filter OUT if exists
     }
-    
+
     return frames;
   },
   then: actions([ConceptRegistering.add, { unique_name, author: user }]),
@@ -49,7 +51,7 @@ export const PublishVersionUploadNew: Sync = ({
   filesMap,
   author,
   now,
-  created_at,
+  created_at: _created_at,
 }) => ({
   when: actions(
     [Requesting.request, {
@@ -59,6 +61,7 @@ export const PublishVersionUploadNew: Sync = ({
     [ConceptRegistering.add, {}, { id: concept }],
   ),
   where: async (frames) => {
+    // No extra flow binding; Existing flow has strong guards to prevent duplicates.
     frames = await frames.query(ConceptRegistering._getAuthor, { concept }, {
       author,
     });
@@ -129,8 +132,8 @@ export const PublishVersionUploadExisting: Sync = ({
   latest_version,
   next_version,
   now,
-  created_at,
-  versions,
+  created_at: _created_at,
+  versions: _versions,
   version_created_at,
 }) => ({
   when: actions([
@@ -144,87 +147,94 @@ export const PublishVersionUploadExisting: Sync = ({
       session: accessToken,
     }, { user });
     frames = frames.filter(($) => $[user] !== undefined);
-    if (frames.length === 0) return [];
+    if (frames.length === 0) return new Frames();
 
     // 2. Check if concept exists and get ID using _lookup query
     const originalFrame = frames[0];
-    const lookupFrames = await frames.query(ConceptRegistering._lookup, { unique_name }, { id: concept });
-    
+    const lookupFrames = await frames.query(ConceptRegistering._lookup, {
+      unique_name,
+    }, { id: concept });
+
     if (lookupFrames.length === 0) {
-      return []; // Concept does not exist (handled by New flow)
+      return new Frames(); // Concept does not exist (handled by New flow)
     }
-    
+
     const conceptId = lookupFrames[0][concept];
     // Merge concept ID into frame
     const frameWithConcept = { ...originalFrame, [concept]: conceptId };
-    
+
     // 3. Check Authorship
-    const authorFrames = await new Frames(frameWithConcept).query(ConceptRegistering._getAuthor, { concept }, { author });
-    if (authorFrames.length === 0 || authorFrames[0][author] !== originalFrame[user]) {
-        return []; // Not author or concept somehow missing
+    const authorFrames = await new Frames(frameWithConcept).query(
+      ConceptRegistering._getAuthor,
+      { concept },
+      { author },
+    );
+    if (
+      authorFrames.length === 0 ||
+      authorFrames[0][author] !== originalFrame[user]
+    ) {
+      return new Frames(); // Not author or concept somehow missing
     }
-    
+
     // 4. Determine Next Version and PREVENT DOUBLE FIRE
     // Get latest version
     const versionFrames = await new Frames(frameWithConcept).query(
-        ConceptVersioning._get, 
-        { concept: conceptId }, 
-        { version: latest_version, created_at: version_created_at }
+      ConceptVersioning._get,
+      { concept: conceptId },
+      { version: latest_version, created_at: version_created_at },
     );
-    
+
     let nextVersionNum = 1;
     if (versionFrames.length > 0) {
-        // Check for Double Fire (Race Condition with New Flow)
-        // If the latest version was created very recently (< 2000ms), assume it was created by the current request flow
-        // and we should NOT create another one.
-        const lastCreated = versionFrames[0][version_created_at] as Date;
-        const timeDiff = new Date().getTime() - lastCreated.getTime();
-        
-        if (timeDiff < 2000) {
-            return []; // Too recent! Assume duplicate.
-        }
+      // Check for Double Fire (Race Condition with New Flow)
+      // If the latest version was created very recently (< 10000ms), assume it was created by the current request flow
+      // and we should NOT create another one.
+      const lastCreated = versionFrames[0][version_created_at] as Date;
+      const timeDiff = new Date().getTime() - lastCreated.getTime();
 
-        nextVersionNum = (versionFrames[0][latest_version] as number) + 1;
+      if (timeDiff < 10000) {
+        return new Frames(); // Too recent! Assume duplicate.
+      }
+
+      nextVersionNum = (versionFrames[0][latest_version] as number) + 1;
     } else {
-        // No versions found in ConceptVersioning.
-        // This means it's a New Concept where the New Sync hasn't finished uploading V1 yet.
-        // Safer to assume New flow handles this.
-        return [];
+      // If no versions found yet, New flow is handling V1. Avoid creating here.
+      return new Frames();
     }
-    
+
     // Add next_version and fresh date to frame
-    const frameWithVersion = { 
-        ...frameWithConcept, 
-        [next_version]: nextVersionNum,
-        [now]: new Date() 
+    const frameWithVersion = {
+      ...frameWithConcept,
+      [next_version]: nextVersionNum,
+      [now]: new Date(),
     };
-    
+
     // 5. Process Files (Reuse logic)
     const filesValue = originalFrame[files] as unknown;
     if (filesValue) {
-        if (filesValue instanceof Map) {
-          frameWithVersion[filesMap] = filesValue;
-        } else if (
-          typeof filesValue === "object" && filesValue !== null &&
-          !Array.isArray(filesValue)
-        ) {
-          const filesObj = filesValue as Record<string, number[] | Uint8Array>;
-          const convertedMap = new Map<string, Uint8Array>();
+      if (filesValue instanceof Map) {
+        frameWithVersion[filesMap] = filesValue;
+      } else if (
+        typeof filesValue === "object" && filesValue !== null &&
+        !Array.isArray(filesValue)
+      ) {
+        const filesObj = filesValue as Record<string, number[] | Uint8Array>;
+        const convertedMap = new Map<string, Uint8Array>();
 
-          for (const [path, content] of Object.entries(filesObj)) {
-            if (Array.isArray(content)) {
-              convertedMap.set(path, new Uint8Array(content));
-            } else if (content instanceof Uint8Array) {
-              convertedMap.set(path, content);
-            }
-          }
-
-          if (convertedMap.size > 0) {
-            frameWithVersion[filesMap] = convertedMap;
+        for (const [path, content] of Object.entries(filesObj)) {
+          if (Array.isArray(content)) {
+            convertedMap.set(path, new Uint8Array(content));
+          } else if (content instanceof Uint8Array) {
+            convertedMap.set(path, content);
           }
         }
+
+        if (convertedMap.size > 0) {
+          frameWithVersion[filesMap] = convertedMap;
+        }
+      }
     }
-    
+
     return new Frames(frameWithVersion);
   },
   then: actions(
@@ -256,7 +266,9 @@ export const PublishResponseSuccess: Sync = ({
   unique_name,
 }) => ({
   when: actions(
-    [Requesting.request, { path: "/registry/publish", unique_name }, { request }],
+    [Requesting.request, { path: "/registry/publish", unique_name }, {
+      request,
+    }],
     // Matches ANY successful upload for this request's unique_name context
     // Note: We rely on ConceptRegistering.addVersion to provide 'concept'
     [ConceptVersioning.upload, {}, { id: version }],
@@ -286,7 +298,7 @@ export const PublishResponseErrorConcept: Sync = ({
 //-- Publish Response Error: Version Upload Failed --//
 export const PublishResponseErrorVersion: Sync = ({
   request,
-  concept,
+  concept: _concept,
   error,
 }) => ({
   when: actions(
@@ -315,7 +327,7 @@ export const PublishResponseErrorAuth: Sync = ({
     }, { user });
     // Only return frames where user was NOT found
     if (authFrames.some(($) => $[user] !== undefined)) {
-      return [];
+      return new Frames();
     }
     // Return original frames with error message
     return frames.map(($) => ({ ...$, [error]: "Invalid access token" }));
@@ -407,8 +419,10 @@ export const RegistryFilesRequest: Sync = ({
     const requestedVersion = originalFrame[version] as number | undefined;
 
     // Get concept ID using _lookup query
-    const lookupFrames = await frames.query(ConceptRegistering._lookup, { unique_name }, { id: concept });
-    
+    const lookupFrames = await frames.query(ConceptRegistering._lookup, {
+      unique_name,
+    }, { id: concept });
+
     if (lookupFrames.length === 0) {
       return new Frames({ ...originalFrame, [files_json]: {} });
     }
@@ -417,23 +431,31 @@ export const RegistryFilesRequest: Sync = ({
     // Get version to download
     let versionToDownload = requestedVersion;
     if (versionToDownload === undefined) {
-        // If no version specified, get the latest one first
-        const latestFrames = await new Frames(lookupFrames[0]).query(ConceptVersioning._get, { concept: conceptId }, { version: version_num });
-         if (latestFrames.length > 0) {
-            versionToDownload = latestFrames[0][version_num] as number;
-         } else {
-             return new Frames({ ...originalFrame, [files_json]: {} });
-         }
+      // If no version specified, get the latest one first
+      const latestFrames = await new Frames(lookupFrames[0]).query(
+        ConceptVersioning._get,
+        { concept: conceptId },
+        { version: version_num },
+      );
+      if (latestFrames.length > 0) {
+        versionToDownload = latestFrames[0][version_num] as number;
+      } else {
+        return new Frames({ ...originalFrame, [files_json]: {} });
+      }
     }
 
     // Download specific version files via _download query
     // IMPORTANT: We are NOT recording a download here (no DownloadAnalyzing.record)
     // because this is for viewing/previewing in the registry UI.
-    frames = await new Frames({...originalFrame, [concept]: conceptId, [version]: versionToDownload}).query(ConceptVersioning._download, {
+    frames = await new Frames({
+      ...originalFrame,
+      [concept]: conceptId,
+      [version]: versionToDownload,
+    }).query(ConceptVersioning._download, {
       concept: conceptId,
       version: versionToDownload,
     }, { files });
-    
+
     if (frames.length === 0) {
       return new Frames({ ...originalFrame, [files_json]: {} });
     }

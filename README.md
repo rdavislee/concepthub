@@ -2,6 +2,10 @@
 
 A concise repository for the ConceptHub project.
 
+## User Testing
+
+- [usertesting.md](./UserTesting.md)
+
 ## Project framing
 
 See the full plan, goals, scope, and setup in:
