@@ -11,3 +11,5 @@ Building Conceptual was a fantastic opportunity to see how modular concepts come
 
 
 ## Terry's Reflection:
+
+Working on Conceptual was a really unique experience because we weren’t just using concepts + syncs to build a site—we were building a concept hub where other students could upload and reuse concepts themselves. Designing a platform that exposes those abstractions to other users forced me to really internalize how the system works and see it from multiple angles: as a developer, as a user, and as someone thinking about extensibility and reuse. I also had to get much more deliberate about prioritization: with everyone juggling multiple classes and deadlines, we had to be honest about what features were truly essential for our timeline and what could be deprioritized or simplified. That constraint ended up being helpful, since it pushed us toward a focused, coherent MVP instead of trying to build everything at once.
